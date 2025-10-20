@@ -1,21 +1,21 @@
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Platform,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../context/AuthContext';
 import { addMedication } from '../database/database';
-import { scheduleMedicationAlarm, testAlarmNow, listScheduledAlarms, cancelAlarm } from '../src/services/alarmService';
+import { cancelAlarm, listScheduledAlarms, scheduleMedicationAlarm, testAlarmNow } from '../src/services/alarmService';
 
 // Função auxiliar para formatar hora
 const formatTime = (date: Date) =>
@@ -23,6 +23,27 @@ const formatTime = (date: Date) =>
 
 // Função auxiliar para formatar data
 const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
+
+// 💡 NOVO: Função para obter a próxima hora cheia (garantindo um futuro imediato)
+const getInitialTime = () => {
+  const now = new Date();
+  const initial = new Date();
+  
+  // Setta para a próxima hora cheia (ou a mesma hora se já for minuto zero)
+  if (now.getMinutes() === 0) {
+      initial.setHours(now.getHours(), 0, 0, 0);
+  } else {
+      initial.setHours(now.getHours() + 1, 0, 0, 0);
+  }
+
+  // Verifica se o tempo inicial está no futuro, se não, avança para o dia seguinte
+  if (initial.getTime() <= now.getTime()) {
+      initial.setDate(initial.getDate() + 1);
+  }
+  
+  return initial;
+};
+
 
 export default function AdicionarMedicamentoScreen() {
   const router = useRouter();
@@ -32,13 +53,9 @@ export default function AdicionarMedicamentoScreen() {
   const [dosage, setDosage] = useState('');
   const [frequency, setFrequency] = useState('');
   const [selectedFrequency, setSelectedFrequency] = useState('Diariamente');
-  // Define o estado inicial do time para a próxima hora cheia
-  const initialTime = new Date();
-  initialTime.setHours(initialTime.getHours() + 1);
-  initialTime.setMinutes(0);
-  initialTime.setSeconds(0);
-  initialTime.setMilliseconds(0);
-  const [time, setTime] = useState(initialTime); 
+  
+  // 💡 ATUALIZADO: Usando a nova função para um horário inicial mais robusto
+  const [time, setTime] = useState(getInitialTime()); 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [observations, setObservations] = useState('');
   const [startDate, setStartDate] = useState(new Date());
@@ -59,7 +76,7 @@ export default function AdicionarMedicamentoScreen() {
   const onTimeChange = (_: any, selectedTime?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (selectedTime) {
-      // 🔧 MANTÉM: Atualiza o estado do 'time' apenas com a hora e minuto
+      // 💡 MANUTENÇÃO: Mantemos a limpeza da hora/minuto aqui
       const newTime = new Date();
       newTime.setHours(selectedTime.getHours());
       newTime.setMinutes(selectedTime.getMinutes());
@@ -93,7 +110,7 @@ export default function AdicionarMedicamentoScreen() {
       console.log('📝 Cadastrando medicamento...');
       console.log('   Horário selecionado:', time.toLocaleTimeString());
 
-      // ✅ MUDANÇA: Agendar o alarme e obter o ID e a data/hora REAL de disparo
+      // ✅ AGORA É A VEZ DO SERVIÇO GARANTIR A DATA FUTURA
       const { id: alarmId, scheduledDate } = await scheduleMedicationAlarm(
         medicationName.trim(),
         dosage.trim(),
@@ -129,7 +146,7 @@ export default function AdicionarMedicamentoScreen() {
         await listScheduledAlarms();
 
         // 🔧 MENSAGEM MELHORADA: Informa ao usuário se é hoje ou amanhã
-        const isToday = scheduledDate.getDate() === new Date().getDate();
+        const isToday = scheduledDate.toDateString() === new Date().toDateString();
         const scheduledTimeStr = formatTime(scheduledDate);
         let message = `Medicamento adicionado com sucesso!\n\n⏰ Alarme configurado para: ${scheduledTimeStr}`;
         
@@ -148,7 +165,7 @@ export default function AdicionarMedicamentoScreen() {
               setDosage('');
               setFrequency('');
               setObservations('');
-              setTime(initialTime); // Volta para a próxima hora cheia
+              setTime(getInitialTime()); // Volta para a próxima hora cheia
               router.back();
             },
           },
@@ -166,7 +183,7 @@ export default function AdicionarMedicamentoScreen() {
   };
 
   return (
-    // ... O restante da sua UI não precisa de alteração
+    // ... Seu JSX (código visual) permanece inalterado
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
@@ -222,7 +239,7 @@ export default function AdicionarMedicamentoScreen() {
             placeholderTextColor="#999"
             value={dosage}
             onChangeText={setDosage}
-            keyboardType="numeric" // Adicionado para dosagem, se for só número
+            keyboardType="numeric" 
           />
         </View>
 
@@ -232,7 +249,6 @@ export default function AdicionarMedicamentoScreen() {
             Frequência <Text style={styles.required}>*</Text>
           </Text>
           <View style={styles.frequencyRow}>
-            {/* Mantido como estava, mas o picker é geralmente mais claro para frequências */}
             <TextInput
               style={[styles.input, styles.frequencyInput]}
               placeholder="Ex: 3"
@@ -371,7 +387,6 @@ export default function AdicionarMedicamentoScreen() {
   );
 }
 
-// ... SEUS STYLES AQUI (não precisam de alteração)
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#B8E6E8' },
     header: {
