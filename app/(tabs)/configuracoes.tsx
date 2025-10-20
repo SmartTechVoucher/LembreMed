@@ -1,30 +1,23 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-// Importa a função de atualização de perfil que criamos no database.ts
-import { updateUserProfile } from '../database/database'; 
-import * as ImagePicker from 'expo-image-picker'; // 👈 Importa o Image Picker
+import React, { useState } from 'react';
+import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { updateUserProfile } from '../database/database';
 
 export default function ConfiguracoesScreen() {
   const { user, signOut } = useAuth(); 
   
-  // States
   const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
   const [profileImage, setProfileImage] = useState(user?.profile_image || '');
 
-  // Função para navegar de volta
   const handleGoBack = () => {
     router.back();
   };
 
-  /**
-   * 🖼️ Abre a galeria de fotos para selecionar uma imagem de perfil usando expo-image-picker.
-   */
   const handleSelectImageFromLibrary = async () => {
-    // 1. Solicitar Permissões (Opcional, mas recomendado)
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (!granted) {
@@ -32,35 +25,28 @@ export default function ConfiguracoesScreen() {
       return;
     }
 
-    // 2. Abrir a galeria
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, // Permite cortar para um formato 1:1
+      allowsEditing: true,
       aspect: [1, 1], 
       quality: 1,
     });
 
-    // 3. Processar resultado
     if (!pickerResult.canceled && pickerResult.assets && pickerResult.assets.length > 0) {
       const selectedImageUri = pickerResult.assets[0].uri;
       setProfileImage(selectedImageUri);
     }
   };
 
-
-  // 💾 Função segura para atualizar TUDO (Email, Senha, Imagem)
   const handleAtualizar = async () => {
-    // 1. Verifica se houve alteração em E-mail, Senha OU Imagem
     const isEmailChanged = email && email !== user?.email;
     const isPasswordSet = password.length > 0;
-    // user?.profile_image pode ser null, então usamos || '' para comparação segura
     const isImageChanged = profileImage !== (user?.profile_image || ''); 
 
     if (!isEmailChanged && !isPasswordSet && !isImageChanged) {
       return Alert.alert('Nada para atualizar', 'Preencha um novo e-mail, senha ou altere a imagem de perfil.');
     }
 
-    // 2. Chama a função ADAPTADA do banco de dados
     try {
       const result = await updateUserProfile(
         user!.id,
@@ -71,8 +57,7 @@ export default function ConfiguracoesScreen() {
 
       if (result.success) {
         Alert.alert('Sucesso', 'Dados atualizados! Por favor, faça login novamente para aplicar as mudanças.');
-        
-        // Força o logout por segurança após alteração de dados sensíveis
+
         signOut();
         router.replace('/auth/login');
       } else {
@@ -84,7 +69,6 @@ export default function ConfiguracoesScreen() {
     }
   };
 
-  // 🚪 Função para sair
   const handleSair = () => {
     signOut();
     router.replace('/auth/login');
@@ -92,35 +76,31 @@ export default function ConfiguracoesScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ⬅️ Cabeçalho com Botão de Voltar */}
       <View style={styles.headerContainer}>
         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#2A9D8F" />
         </TouchableOpacity>
         <Text style={styles.title}>Configurações da Conta</Text>
-        <View style={styles.backButton} /> {/* Placeholder para centralizar */}
+        <View style={styles.backButton} />
       </View>
 
       <View style={styles.formContainer}>
         
-        {/* 📸 Seção da Imagem de Perfil (Agora Clicável) */}
         <Text style={[styles.label, { textAlign: 'center', marginBottom: 15 }]}>
           Clique no ícone para alterar
         </Text>
         <TouchableOpacity 
           style={styles.profileImageSection} 
-          onPress={handleSelectImageFromLibrary} // 👈 Chama o ImagePicker aqui
+          onPress={handleSelectImageFromLibrary}
         >
           <View style={styles.profileImageContainer}>
             {profileImage ? (
-              // Se tiver uma URI, tenta carregar
               <Image 
                 source={{ uri: profileImage }} 
                 style={styles.profileImage} 
                 onError={() => console.log('Erro ao carregar imagem de perfil')} 
               />
             ) : (
-              // Placeholder se não tiver URI
               <View style={styles.profileImagePlaceholder}>
                 <Ionicons name="person" size={40} color="#999" />
               </View>
@@ -128,13 +108,11 @@ export default function ConfiguracoesScreen() {
           </View>
           <Text style={styles.changeImageText}>Mudar Imagem</Text>
         </TouchableOpacity>
-        {/* Fim da Seção de Imagem */}
 
-        {/* 🆕 Botão explícito para Remover Imagem do Perfil (Visível apenas se houver imagem) */}
         {profileImage ? (
             <TouchableOpacity 
                 style={styles.removeImageButton} 
-                onPress={() => setProfileImage('')} // Limpa a URI para salvar NULL no DB
+                onPress={() => setProfileImage('')} 
             >
                 <Ionicons name="trash-outline" size={20} color="#E76F51" />
                 <Text style={styles.removeImageText}>Remover Imagem de Perfil</Text>
@@ -154,7 +132,7 @@ export default function ConfiguracoesScreen() {
           style={styles.input}
           secureTextEntry
           placeholder="Digite uma nova senha"
-          placeholderTextColor="#A9A9A9" // 👈 CORREÇÃO: Garante que o placeholder seja visível
+          placeholderTextColor="#A9A9A9" 
           value={password}
           onChangeText={setPassword}
         />
@@ -200,7 +178,6 @@ const styles = StyleSheet.create({
   formContainer: {
     paddingTop: 10,
   },
-  // 📸 ESTILOS NOVOS PARA A IMAGEM DE PERFIL
   profileImageSection: {
     alignItems: 'center',
     marginBottom: 10,
@@ -216,7 +193,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 10,
     borderWidth: 3,
-    borderColor: '#2A9D8F', // Cor de destaque
+    borderColor: '#2A9D8F',
   },
   profileImage: {
     width: '100%',
@@ -236,7 +213,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
     textDecorationLine: 'underline',
   },
-  // 🆕 ESTILO DO BOTÃO DE REMOVER IMAGEM
   removeImageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,7 +222,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E76F51',
-    backgroundColor: '#FFEEEE', // Fundo levemente vermelho
+    backgroundColor: '#FFEEEE',
     gap: 5,
   },
   removeImageText: {
@@ -254,7 +230,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  // FIM DOS ESTILOS NOVOS
   label: { 
     fontSize: 14, 
     fontWeight: '600', 

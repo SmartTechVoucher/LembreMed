@@ -1,18 +1,12 @@
 import * as SQLite from 'expo-sqlite';
 
-// =======================================================
-// ✅ DEFINIÇÃO DE TIPOS (Copiado/Ajustado do seu AuthContext)
-// =======================================================
-
-// 🧠 Tipo principal de usuário (Sem a senha, por segurança)
 export interface User {
   id: number;
   email: string;
-  name: string | null; // Tipagem ajustada para refletir que pode ser null no DB
-  profile_image: string | null; // Tipagem ajustada para refletir que pode ser null no DB
+  name: string | null;
+  profile_image: string | null;
 }
 
-// 💊 Tipo principal de medicamento
 export interface Medication {
   id: number;
   user_id: number;
@@ -29,19 +23,10 @@ export interface Medication {
   created_at: string;
 }
 
-// =======================================================
-// ✅ CONFIGURAÇÃO DO BANCO
-// =======================================================
-
 const db = SQLite.openDatabaseSync('lembremed_v4.db');
-
-// =======================================================
-// ✅ FUNÇÕES DE MIGRAÇÃO/INICIALIZAÇÃO
-// =======================================================
 
 export const migrateDatabase = async (): Promise<void> => {
   try {
-    // Tenta adicionar notification_id
     try {
       await db.execAsync(`
         ALTER TABLE medications ADD COLUMN notification_id TEXT;
@@ -53,7 +38,6 @@ export const migrateDatabase = async (): Promise<void> => {
       }
     }
 
-    // Tenta adicionar taken_today
     try {
       await db.execAsync(`
         ALTER TABLE medications ADD COLUMN taken_today INTEGER DEFAULT 0;
@@ -110,10 +94,6 @@ export const initDatabase = async (): Promise<void> => {
   }
 };
 
-// =======================================================
-// ✅ FUNÇÕES DE AUTENTICAÇÃO E USUÁRIO
-// =======================================================
-
 export const registerUser = async (
   email: string,
   password: string,
@@ -142,7 +122,6 @@ export const loginUser = async (
   password: string
 ): Promise<{ success: boolean; user?: User; error?: string }> => {
   try {
-    // ⚠️ SELECT APENAS DADOS SEGUROS: id, email, name, profile_image
     const result = await db.getFirstAsync<User>(
       'SELECT id, email, name, profile_image FROM users WHERE email = ? AND password = ?',
       [email, password]
@@ -173,19 +152,15 @@ export const getUserById = async (id: number): Promise<User | null> => {
   }
 };
 
-/**
- * 🆕 NOVO: Função segura para atualizar email, senha e/ou imagem de perfil
- * Esta função substitui a anterior (updateUserEmailAndPassword) e adiciona o campo profile_image.
- */
 export const updateUserProfile = async (
   userId: number,
   newEmail?: string,
   newPassword?: string,
-  newProfileImage?: string // Campo da imagem de perfil (a URL/caminho)
+  newProfileImage?: string 
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const updateFields: string[] = [];
-    const updateValues: (string | number | null)[] = []; // O tipo 'null' foi adicionado aqui
+    const updateValues: (string | number | null)[] = [];
 
     if (newEmail) {
       updateFields.push('email = ?');
@@ -197,16 +172,14 @@ export const updateUserProfile = async (
       updateValues.push(newPassword);
     }
 
-    // 📸 Lógica para atualizar a imagem de perfil
     if (newProfileImage !== undefined) {
       updateFields.push('profile_image = ?');
-      // Se o valor for uma string vazia (para limpar a imagem), salva como NULL no DB
       const imageValue = newProfileImage.trim() === '' ? null : newProfileImage;
       updateValues.push(imageValue);
     }
 
     if (updateFields.length === 0) {
-      return { success: true }; // Nada para atualizar
+      return { success: true }; 
     }
 
     const sql = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`;
@@ -223,11 +196,6 @@ export const updateUserProfile = async (
     return { success: false, error: 'Erro ao atualizar dados do usuário' };
   }
 };
-
-// =======================================================
-// ✅ FUNÇÕES DE MEDICAMENTOS
-// (Mantidas como no seu código original, apenas com tipo Medication)
-// =======================================================
 
 export const addMedication = async (
   userId: number,
@@ -377,10 +345,6 @@ export const resetDailyMedications = async (): Promise<void> => {
   }
 };
 
-// =======================================================
-// ✅ FUNÇÕES DE HISTÓRICO
-// =======================================================
-
 export const createMedicationHistoryTable = async (): Promise<void> => {
   try {
     await db.execAsync(`
@@ -517,10 +481,6 @@ export const getAllMedicationsByUser = async (userId: number): Promise<Medicatio
   }
 };
 
-/**
- * 🆔 Atualiza o alarm_id (notification_id) de um medicamento
- * (Usado quando re-agendamos um alarme e o ID muda)
- */
 export const updateMedicationAlarmId = async (
   medicationId: number,
   alarmId: string

@@ -1,39 +1,32 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  FlatList,
-  Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import {
-  getUserMedications,
   deleteMedication,
   getMedicationNotificationId,
+  getUserMedications,
   markMedicationAsTaken,
-  // ✅ Importa o tipo Medication diretamente do database.ts
   Medication,
 } from '../database/database';
-import { useFocusEffect } from '@react-navigation/native';
-// ❌ REMOVIDO: Importação duplicada do tipo Medication
-// import { Medication } from '../src/types';
 import { cancelAlarm } from '../src/services/alarmService';
-import { router } from 'expo-router';
-
-// ⚠️ Mantenha o arquivo 'src/types' caso ele contenha outros tipos importantes para sua aplicação.
 
 export default function MinhaContaScreen() {
   const { user } = useAuth();
   const [medications, setMedications] = useState<Medication[]>([]);
-  // const [soundEnabled, setSoundEnabled] = useState(true); // Removido por não ser usado
 
   useFocusEffect(
     useCallback(() => {
-      // ✅ Garantindo que o user existe antes de carregar
       if (user?.id) loadMedications();
     }, [user])
   );
@@ -41,7 +34,6 @@ export default function MinhaContaScreen() {
   const loadMedications = async () => {
     if (!user?.id) return;
     try {
-      // ✅ A função getUserMedications já retorna Medication[]
       const meds = await getUserMedications(user.id); 
       setMedications(meds);
     } catch (error) {
@@ -49,7 +41,6 @@ export default function MinhaContaScreen() {
     }
   };
 
-  // ✅ Marcar como tomado
   const handleToggleTaken = async (medication: Medication, currentStatus: boolean) => {
     if (!user) return;
     
@@ -120,7 +111,6 @@ export default function MinhaContaScreen() {
         </View>
 
         <View style={styles.actionIcons}>
-          {/* ✅ Botão Tomado */}
           <TouchableOpacity onPress={() => handleToggleTaken(item, item.taken_today === 1)}>
             <Ionicons 
               name={item.taken_today === 1 ? "checkmark-circle" : "checkmark-circle-outline"} 
@@ -162,7 +152,6 @@ export default function MinhaContaScreen() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      {/* ⚠️ Lembre-se de que a imagem precisa estar no local: assets/images/Hidden person-pana 1.png */}
       <Image
         source={require('../../assets/images/Hidden person-pana 1.png')}
         style={styles.emptyImage}

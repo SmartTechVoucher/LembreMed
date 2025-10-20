@@ -2,10 +2,8 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-// ID do canal de notificação para Android
 const CHANNEL_ID = 'medication-alarm';
 
-// ✅ Configuração global do handler 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -15,9 +13,6 @@ Notifications.setNotificationHandler({
   }),
 });
 
-/**
- * Inicializa o serviço de alarmes (chamado no _layout.tsx)
- */
 export async function initializeAlarmService() {
   try {
     console.log('🔔 Inicializando serviço de alarmes...');
@@ -28,9 +23,6 @@ export async function initializeAlarmService() {
   }
 }
 
-/**
- * Solicita permissão para enviar notificações (Android + iOS)
- */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
     if (!Device.isDevice && Platform.OS !== 'web') {
@@ -48,9 +40,6 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-/**
- * Configura o canal de som e vibração no Android
- */
 export async function configureNotificationChannel() {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
@@ -66,16 +55,12 @@ export async function configureNotificationChannel() {
   }
 }
 
-/**
- * 🔥 FUNÇÃO AUXILIAR: Calcula o próximo horário de disparo
- */
 function getNextFireDate(hour: number, minute: number): Date {
   const now = new Date();
   const nextFire = new Date();
   
   nextFire.setHours(hour, minute, 0, 0);
   
-  // Se o horário já passou hoje, agenda para amanhã
   if (nextFire.getTime() <= now.getTime()) {
     nextFire.setDate(nextFire.getDate() + 1);
   }
@@ -84,7 +69,7 @@ function getNextFireDate(hour: number, minute: number): Date {
 }
 
 /**
- * 🔥 SOLUÇÃO ANDROID: Agenda um alarme usando Date (timestamp)
+ * Agenda um alarme usando Date (timestamp)
  * Esta abordagem funciona tanto no Android quanto no iOS
  * @param medicationName Nome do medicamento
  * @param dosage Dosagem
@@ -110,10 +95,8 @@ export async function scheduleMedicationAlarm(
     const hour = alarmTime.getHours();
     const minute = alarmTime.getMinutes();
     
-    // 🔥 Calcula o próximo horário de disparo
     const nextFireDate = getNextFireDate(hour, minute);
     
-    // Calcula quantos segundos faltam até o próximo disparo
     const now = new Date();
     const secondsUntilFire = Math.floor((nextFireDate.getTime() - now.getTime()) / 1000);
     
@@ -123,8 +106,6 @@ export async function scheduleMedicationAlarm(
     console.log('   Próximo disparo:', nextFireDate.toLocaleString('pt-BR'));
     console.log('   Segundos até disparar:', secondsUntilFire);
 
-    // 🔥 ANDROID: Usa trigger com DATE (não calendar)
-    // iOS: Também funciona com date
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: '💊 HORA DO MEDICAMENTO!',
@@ -135,7 +116,7 @@ export async function scheduleMedicationAlarm(
           channelId: CHANNEL_ID,
         }),
       },
-      // 🔥 SOLUÇÃO: Usar trigger com DATE para repetição diária
+
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: hour,
@@ -148,7 +129,6 @@ export async function scheduleMedicationAlarm(
     console.log('   ID da notificação:', notificationId);
     console.log('   Primeiro toque em:', nextFireDate.toLocaleString('pt-BR'));
     
-    // 🔧 Debug: Verifica se realmente foi agendado
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     const thisNotification = scheduled.find(n => n.identifier === notificationId);
     
@@ -167,9 +147,6 @@ export async function scheduleMedicationAlarm(
   }
 }
 
-/**
- * Cancela um alarme específico
- */
 export async function cancelAlarm(notificationId: string) {
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
@@ -179,9 +156,6 @@ export async function cancelAlarm(notificationId: string) {
   }
 }
 
-/**
- * Cancela todos os alarmes
- */
 export async function cancelAllAlarms() {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -191,9 +165,7 @@ export async function cancelAllAlarms() {
   }
 }
 
-/**
- * 🔥 MELHORADO: Lista todos os alarmes agendados com mais detalhes
- */
+
 export async function listScheduledAlarms() {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
@@ -219,9 +191,6 @@ export async function listScheduledAlarms() {
   }
 }
 
-/**
- * Testa o alarme imediatamente (para debug)
- */
 export async function testAlarmNow() {
   try {
     await Notifications.scheduleNotificationAsync({

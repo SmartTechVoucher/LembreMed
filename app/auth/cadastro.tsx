@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { registerUser } from '../database/database';
 
 export default function CadastroScreen() {
-  const [name, setName] = useState(''); // ✅ ADICIONADO campo de nome
+  const [name, setName] = useState(''); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -35,8 +35,7 @@ export default function CadastroScreen() {
   };
 
   const handleRegister = async () => {
-    // Validações
-    if (!name || !email || !password) { // ✅ CORRIGIDO: Validar nome também
+    if (!name || !email || !password) {
       Alert.alert('Erro', 'Por favor, preencha nome, email e senha');
       return;
     }
@@ -58,7 +57,6 @@ export default function CadastroScreen() {
     }
 
     setLoading(true);
-    // ✅ CORRIGIDO: Passar o nome para registerUser
     const result = await registerUser(email, password, name, profileImage || undefined);
     setLoading(false);
 
@@ -80,7 +78,6 @@ export default function CadastroScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -100,10 +97,8 @@ export default function CadastroScreen() {
         </Text>
       </View>
 
-      {/* Welcome Text */}
       <Text style={styles.welcomeText}>Crie sua conta</Text>
 
-      {/* Profile Image */}
       <View style={styles.imageContainer}>
         <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
           {profileImage ? (
@@ -120,9 +115,7 @@ export default function CadastroScreen() {
         <Text style={styles.imageText}>Foto de perfil (opcional)</Text>
       </View>
 
-      {/* Form */}
       <View style={styles.formContainer}>
-        {/* ✅ ADICIONADO: Campo de Nome */}
         <View style={styles.inputContainer}>
           <Ionicons name="person-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -135,7 +128,6 @@ export default function CadastroScreen() {
           />
         </View>
 
-        {/* Email Input */}
         <View style={styles.inputContainer}>
           <Ionicons name="mail-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -149,7 +141,6 @@ export default function CadastroScreen() {
           />
         </View>
 
-        {/* Password Input */}
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -162,7 +153,6 @@ export default function CadastroScreen() {
           />
         </View>
 
-        {/* Confirm Password Input */}
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -177,7 +167,6 @@ export default function CadastroScreen() {
 
         <Text style={styles.requiredText}>* Campos obrigatórios</Text>
 
-        {/* Register Button */}
         <TouchableOpacity 
           style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
           onPress={handleRegister}
@@ -188,7 +177,6 @@ export default function CadastroScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Login Link */}
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>Já tem uma conta? </Text>
           <TouchableOpacity onPress={() => router.push('/auth/login')}>

@@ -1,5 +1,5 @@
-import React from 'react';
 import { Tabs } from 'expo-router';
+import React from 'react';
 import { Image } from 'react-native';
 
 export default function TabsLayout() {
@@ -7,22 +7,21 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: true, // Mostra o texto do rótulo
+        tabBarShowLabel: true, 
         tabBarStyle: {
           backgroundColor: '#f6f6d8ff',
           borderTopColor: '#000000ff',
           height: 65,
           paddingBottom: 5,
         },
-        tabBarActiveTintColor: '#2A7C8F', // Cor ativa (ícones e texto)
-        tabBarInactiveTintColor: '#9E9E9E', // Cor inativa
+        tabBarActiveTintColor: '#2A7C8F',
+        tabBarInactiveTintColor: '#9E9E9E', 
       }}
     >
-      {/* 1. Tela Principal (Início) */}
       <Tabs.Screen
         name="inicio"
         options={{
-          title: 'Início', // Rótulo na Tab Bar
+          title: 'Início', 
           tabBarIcon: ({ focused }) => (
             <Image
               source={require('../../assets/icons/home.png')}
@@ -36,7 +35,6 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 2. Tela de Adicionar Medicamento */}
       <Tabs.Screen
         name="adicionar"
         options={{
@@ -54,7 +52,6 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 3. Tela de Histórico */}
       <Tabs.Screen
         name="historico"
         options={{
@@ -72,11 +69,10 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 4. NOVO: Tela de Configurações */}
       <Tabs.Screen
         name="configuracoes" 
         options={{
-          title: 'Config.', // <--- ESTE RÓTULO JÁ ESTAVA NA VERSÃO ANTERIOR
+          title: 'Config.',
           tabBarIcon: ({ focused }) => (
             <Image
               source={require('../../assets/icons/config.png')} 
@@ -90,11 +86,10 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Mantém a rota 'minha-conta' oculta, caso ela seja usada para navegação interna */}
       <Tabs.Screen
         name="minha-conta"
         options={{
-          href: null, // Continua escondida da Tab Bar
+          href: null, 
         }}
       />
     </Tabs>

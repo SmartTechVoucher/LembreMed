@@ -1,16 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
-import { getMedicationHistory, getHistoryStats } from '../database/database';
 import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { getHistoryStats, getMedicationHistory } from '../database/database';
 
 interface HistoryItem {
   id: number;
@@ -138,12 +137,10 @@ export default function HistoricoScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Histórico</Text>
       </View>
 
-      {/* Estatísticas */}
       {stats.total > 0 && (
         <View style={styles.statsContainer}>
           <View style={styles.statsCard}>
@@ -172,7 +169,6 @@ export default function HistoricoScreen() {
         </View>
       )}
 
-      {/* Lista de histórico */}
       {history.length > 0 ? (
         <FlatList
           data={history}

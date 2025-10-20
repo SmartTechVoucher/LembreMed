@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { loginUser } from '../database/database';
 
@@ -20,12 +20,10 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    // Chama a função do banco de dados
     const result = await loginUser(email, password);
     setLoading(false);
 
     if (result.success && result.user) {
-      // ✅ CORREÇÃO: result.user é do tipo 'User' (definido no database.ts e importado no AuthContext)
       await signIn(result.user); 
       Alert.alert('Sucesso', 'Login realizado com sucesso!', [
         {
@@ -40,9 +38,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Logo e Título */}
       <View style={styles.header}>
-        {/* ⚠️ Lembre-se de que a imagem precisa estar no local: assets/images/Blue_pill.png */}
         <Image 
           source={require('../../assets/images/Blue_pill.png')}
           style={styles.logo}
@@ -54,12 +50,9 @@ export default function LoginScreen() {
         </Text>
       </View>
 
-      {/* Welcome Text */}
       <Text style={styles.welcomeText}>Bem vindo, por favor informe seu login</Text>
 
-      {/* Form */}
       <View style={styles.formContainer}>
-        {/* Email Input */}
         <View style={styles.inputContainer}>
           <Ionicons name="mail-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -73,7 +66,6 @@ export default function LoginScreen() {
           />
         </View>
 
-        {/* Password Input */}
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -86,7 +78,6 @@ export default function LoginScreen() {
           />
         </View>
 
-        {/* Remember me and Forgot password */}
         <View style={styles.optionsRow}>
           <TouchableOpacity 
             style={styles.rememberContainer}
@@ -103,7 +94,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Login Button */}
         <TouchableOpacity 
           style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
           onPress={handleLogin}
@@ -114,10 +104,8 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Or Login with */}
         <Text style={styles.orText}>Ou login com</Text>
 
-        {/* Social Login Buttons */}
         <View style={styles.socialContainer}>
           <TouchableOpacity style={styles.socialButton}>
             <Ionicons name="logo-facebook" size={24} color="#1877F2" />
@@ -127,7 +115,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Sign Up Link */}
         <View style={styles.signupContainer}>
           <Text style={styles.signupText}>Não tem uma conta? </Text>
           <TouchableOpacity onPress={() => router.push('/auth/cadastro')}>

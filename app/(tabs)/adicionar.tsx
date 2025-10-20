@@ -17,26 +17,22 @@ import { useAuth } from '../context/AuthContext';
 import { addMedication } from '../database/database';
 import { cancelAlarm, listScheduledAlarms, scheduleMedicationAlarm, testAlarmNow } from '../src/services/alarmService';
 
-// Função auxiliar para formatar hora
+
 const formatTime = (date: Date) =>
   date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-// Função auxiliar para formatar data
 const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
 
-// 💡 NOVO: Função para obter a próxima hora cheia (garantindo um futuro imediato)
 const getInitialTime = () => {
   const now = new Date();
   const initial = new Date();
   
-  // Setta para a próxima hora cheia (ou a mesma hora se já for minuto zero)
   if (now.getMinutes() === 0) {
       initial.setHours(now.getHours(), 0, 0, 0);
   } else {
       initial.setHours(now.getHours() + 1, 0, 0, 0);
   }
 
-  // Verifica se o tempo inicial está no futuro, se não, avança para o dia seguinte
   if (initial.getTime() <= now.getTime()) {
       initial.setDate(initial.getDate() + 1);
   }
@@ -54,7 +50,6 @@ export default function AdicionarMedicamentoScreen() {
   const [frequency, setFrequency] = useState('');
   const [selectedFrequency, setSelectedFrequency] = useState('Diariamente');
   
-  // 💡 ATUALIZADO: Usando a nova função para um horário inicial mais robusto
   const [time, setTime] = useState(getInitialTime()); 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [observations, setObservations] = useState('');
@@ -76,7 +71,6 @@ export default function AdicionarMedicamentoScreen() {
   const onTimeChange = (_: any, selectedTime?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (selectedTime) {
-      // 💡 MANUTENÇÃO: Mantemos a limpeza da hora/minuto aqui
       const newTime = new Date();
       newTime.setHours(selectedTime.getHours());
       newTime.setMinutes(selectedTime.getMinutes());
@@ -99,7 +93,6 @@ export default function AdicionarMedicamentoScreen() {
   };
 
   const handleAddMedication = async () => {
-    // Validações...
     if (!medicationName.trim() || !dosage.trim() || (!frequency.trim() && !selectedFrequency) || !user) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios e autentique o usuário.');
       return;
@@ -110,11 +103,10 @@ export default function AdicionarMedicamentoScreen() {
       console.log('📝 Cadastrando medicamento...');
       console.log('   Horário selecionado:', time.toLocaleTimeString());
 
-      // ✅ AGORA É A VEZ DO SERVIÇO GARANTIR A DATA FUTURA
       const { id: alarmId, scheduledDate } = await scheduleMedicationAlarm(
         medicationName.trim(),
         dosage.trim(),
-        time // Passa o objeto Date com hora e minuto corretos
+        time 
       );
 
       if (!alarmId || !scheduledDate) {
@@ -126,7 +118,6 @@ export default function AdicionarMedicamentoScreen() {
       console.log('✅ Alarme agendado com ID:', alarmId);
       console.log('✅ Alarme disparará em:', scheduledDate.toLocaleString());
 
-      // ✅ Salvar no banco de dados (certifique-se de que sua função addMedication está em ../database/database)
       const result = await addMedication(
         user.id,
         medicationName.trim(),
@@ -142,10 +133,8 @@ export default function AdicionarMedicamentoScreen() {
       setLoading(false);
 
       if (result.success) {
-        // 📋 Lista todos os alarmes agendados para debug
         await listScheduledAlarms();
 
-        // 🔧 MENSAGEM MELHORADA: Informa ao usuário se é hoje ou amanhã
         const isToday = scheduledDate.toDateString() === new Date().toDateString();
         const scheduledTimeStr = formatTime(scheduledDate);
         let message = `Medicamento adicionado com sucesso!\n\n⏰ Alarme configurado para: ${scheduledTimeStr}`;
@@ -160,18 +149,16 @@ export default function AdicionarMedicamentoScreen() {
           {
             text: 'OK',
             onPress: () => {
-              // Limpar estados (opcional) e voltar
               setMedicationName('');
               setDosage('');
               setFrequency('');
               setObservations('');
-              setTime(getInitialTime()); // Volta para a próxima hora cheia
+              setTime(getInitialTime());
               router.back();
             },
           },
         ]);
       } else {
-        // Se o banco falhar, tentar cancelar o alarme agendado
         await cancelAlarm(alarmId); 
         Alert.alert('Erro', result.error || 'Erro ao adicionar medicamento no banco de dados. O alarme foi cancelado.');
       }
@@ -183,9 +170,7 @@ export default function AdicionarMedicamentoScreen() {
   };
 
   return (
-    // ... Seu JSX (código visual) permanece inalterado
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#2A7C8F" />
@@ -203,7 +188,6 @@ export default function AdicionarMedicamentoScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Conteúdo */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -214,7 +198,6 @@ export default function AdicionarMedicamentoScreen() {
           Informe os detalhes{'\n'}para receber lembretes no horário certo.
         </Text>
 
-        {/* Nome */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>
             Nome do Medicamento <Text style={styles.required}>*</Text>
@@ -228,7 +211,6 @@ export default function AdicionarMedicamentoScreen() {
           />
         </View>
 
-        {/* Dosagem */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>
             Dosagem <Text style={styles.required}>*</Text>
@@ -243,7 +225,6 @@ export default function AdicionarMedicamentoScreen() {
           />
         </View>
 
-        {/* Frequência */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>
             Frequência <Text style={styles.required}>*</Text>
@@ -271,7 +252,6 @@ export default function AdicionarMedicamentoScreen() {
           </View>
         </View>
 
-        {/* Horário */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>
             Horário <Text style={styles.required}>*</Text>
@@ -295,7 +275,6 @@ export default function AdicionarMedicamentoScreen() {
           )}
         </View>
 
-        {/* Observações */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Observações (Opcional)</Text>
           <TextInput
@@ -310,7 +289,6 @@ export default function AdicionarMedicamentoScreen() {
           />
         </View>
 
-        {/* Período de uso */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Período de Uso (Opcional)</Text>
           <View style={styles.dateRow}>
@@ -364,7 +342,6 @@ export default function AdicionarMedicamentoScreen() {
           )}
         </View>
 
-        {/* Botões */}
         <TouchableOpacity
           style={[styles.addButton, loading && styles.addButtonDisabled]}
           onPress={handleAddMedication}

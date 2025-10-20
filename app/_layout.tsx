@@ -4,9 +4,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { initDatabase } from './database/database';
 import { initializeAlarmService } from './src/services/alarmService';
 
-/**
- * 🔥 Componente interno que tem acesso ao contexto de autenticação
- */
 function AppContent() {
   const { user } = useAuth();
 
@@ -15,15 +12,12 @@ function AppContent() {
       try {
         console.log('🚀 Inicializando aplicação...');
         
-        // 1. Inicializar banco de dados
         await initDatabase();
         console.log('✅ Banco de dados inicializado');
         
-        // 2. Inicializar serviço de alarmes
         await initializeAlarmService();
         console.log('✅ Serviço de alarmes inicializado');
         
-        // 3. Re-agendar alarmes se usuário estiver logado
         if (user) {
           await reScheduleAllAlarms(user.id);
         }
@@ -35,7 +29,6 @@ function AppContent() {
     initialize();
   }, []);
 
-  // 🔄 Re-agenda alarmes quando o usuário fizer login
   useEffect(() => {
     if (user) {
       console.log('👤 Usuário logado, verificando alarmes...');
@@ -66,7 +59,6 @@ async function reScheduleAllAlarms(userId: number) {
     const { getAllMedicationsByUser } = await import('./database/database');
     const { scheduleMedicationAlarm, listScheduledAlarms } = await import('./src/services/alarmService');
     
-    // Busca todos os medicamentos do usuário
     const medications = await getAllMedicationsByUser(userId);
     
     if (!medications || medications.length === 0) {
@@ -76,22 +68,18 @@ async function reScheduleAllAlarms(userId: number) {
 
     console.log(`📋 ${medications.length} medicamento(s) encontrado(s)`);
 
-    // Lista alarmes já agendados para evitar duplicatas
     const scheduledNotifications = await listScheduledAlarms();
     const scheduledIds = scheduledNotifications.map(n => n.identifier);
 
     let rescheduledCount = 0;
 
-    // Re-agenda cada medicamento (se ainda não estiver agendado)
     for (const med of medications) {
       try {
-        // Se já existe um alarme agendado com esse ID, pula
         if (med.alarm_id && scheduledIds.includes(med.alarm_id)) {
           console.log(`⏭️ Alarme já agendado: ${med.name}`);
           continue;
         }
 
-        // Parse do horário (formato "HH:MM")
         const [hour, minute] = med.time.split(':').map(Number);
         
         if (isNaN(hour) || isNaN(minute)) {
@@ -102,7 +90,6 @@ async function reScheduleAllAlarms(userId: number) {
         const alarmTime = new Date();
         alarmTime.setHours(hour, minute, 0, 0);
 
-        // Re-agenda o alarme
         const { id: newAlarmId } = await scheduleMedicationAlarm(
           med.name,
           med.dosage,
@@ -110,7 +97,6 @@ async function reScheduleAllAlarms(userId: number) {
         );
 
         if (newAlarmId) {
-          // Atualiza o alarm_id no banco se mudou
           if (newAlarmId !== med.alarm_id) {
             const { updateMedicationAlarmId } = await import('./database/database');
             await updateMedicationAlarmId(med.id, newAlarmId);
