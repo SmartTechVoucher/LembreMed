@@ -502,4 +502,41 @@ export const getHistoryStats = async (userId: number): Promise<{
   }
 };
 
+export const getAllMedicationsByUser = async (userId: number): Promise<Medication[]> => {
+  try {
+    const result = await db.getAllAsync<Medication>(
+      'SELECT * FROM medications WHERE user_id = ? ORDER BY time ASC',
+      [userId]
+    );
+
+    console.log(`📋 ${result?.length || 0} medicamento(s) encontrado(s) para usuário ${userId}`);
+    return result || [];
+  } catch (error) {
+    console.error('❌ Erro ao buscar medicamentos do usuário:', error);
+    return [];
+  }
+};
+
+/**
+ * 🆔 Atualiza o alarm_id (notification_id) de um medicamento
+ * (Usado quando re-agendamos um alarme e o ID muda)
+ */
+export const updateMedicationAlarmId = async (
+  medicationId: number,
+  alarmId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await db.runAsync(
+      'UPDATE medications SET notification_id = ? WHERE id = ?',
+      [alarmId, medicationId]
+    );
+    
+    console.log(`✅ alarm_id atualizado para medicamento ${medicationId}: ${alarmId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Erro ao atualizar alarm_id:', error);
+    return { success: false, error: 'Erro ao atualizar ID do alarme' };
+  }
+};
+
 export default db;

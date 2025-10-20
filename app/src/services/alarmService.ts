@@ -8,16 +8,16 @@ const CHANNEL_ID = 'medication-alarm';
 // ✅ Configuração global do handler 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true, // Exibe notificação como banner
-    shouldShowList: true,   // Exibe na central de notificações
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
 });
 
 /**
- * Inicializa o serviço de alarmes (chamado no _layout.tsx)
- */
+ * Inicializa o serviço de alarmes (chamado no _layout.tsx)
+ */
 export async function initializeAlarmService() {
   try {
     console.log('🔔 Inicializando serviço de alarmes...');
@@ -29,8 +29,8 @@ export async function initializeAlarmService() {
 }
 
 /**
- * Solicita permissão para enviar notificações (Android + iOS)
- */
+ * Solicita permissão para enviar notificações (Android + iOS)
+ */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
     if (!Device.isDevice && Platform.OS !== 'web') {
@@ -49,14 +49,14 @@ export async function requestNotificationPermission(): Promise<boolean> {
 }
 
 /**
- * Configura o canal de som e vibração no Android
- */
+ * Configura o canal de som e vibração no Android
+ */
 export async function configureNotificationChannel() {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: 'Alarme de Medicamentos',
       importance: Notifications.AndroidImportance.MAX,
-      sound: 'default', // Som padrão do sistema
+      sound: 'default',
       vibrationPattern: [0, 500, 250, 500],
       enableVibrate: true,
       enableLights: true,
@@ -67,11 +67,29 @@ export async function configureNotificationChannel() {
 }
 
 /**
- * Agenda um alarme para o horário selecionado (repete diariamente)
- * @param medicationName Nome do medicamento
- * @param dosage Dosagem
- * @param alarmTime Objeto Date com o horário (hora e minuto) desejado
- */
+ * 🔥 FUNÇÃO AUXILIAR: Calcula o próximo horário de disparo
+ */
+function getNextFireDate(hour: number, minute: number): Date {
+  const now = new Date();
+  const nextFire = new Date();
+  
+  nextFire.setHours(hour, minute, 0, 0);
+  
+  // Se o horário já passou hoje, agenda para amanhã
+  if (nextFire.getTime() <= now.getTime()) {
+    nextFire.setDate(nextFire.getDate() + 1);
+  }
+  
+  return nextFire;
+}
+
+/**
+ * 🔥 SOLUÇÃO ANDROID: Agenda um alarme usando Date (timestamp)
+ * Esta abordagem funciona tanto no Android quanto no iOS
+ * @param medicationName Nome do medicamento
+ * @param dosage Dosagem
+ * @param alarmTime Objeto Date com o horário (hora e minuto) desejado
+ */
 export async function scheduleMedicationAlarm(
   medicationName: string,
   dosage: string,
@@ -80,10 +98,10 @@ export async function scheduleMedicationAlarm(
   try {
     const permissionGranted = await requestNotificationPermission();
 
-    console.log('Permissão concedida para notificações:', permissionGranted);
+    console.log('✅ Permissão concedida para notificações:', permissionGranted);
 
     if (!permissionGranted) {
-      console.warn('Permissão negada. O alarme não será agendado.');
+      console.warn('❌ Permissão negada. O alarme não será agendado.');
       return { id: null, scheduledDate: null };
     }
 
@@ -92,57 +110,66 @@ export async function scheduleMedicationAlarm(
     const hour = alarmTime.getHours();
     const minute = alarmTime.getMinutes();
     
-    // 💡 LÓGICA DE TEMPO ROBUSTA: Calcula qual será o PRIMEIRO disparo.
-    // Isso é útil para logar e exibir a data correta ao usuário (hoje ou amanhã).
+    // 🔥 Calcula o próximo horário de disparo
+    const nextFireDate = getNextFireDate(hour, minute);
+    
+    // Calcula quantos segundos faltam até o próximo disparo
     const now = new Date();
-    const nextFireDate = new Date(now); 
-    nextFireDate.setHours(hour, minute, 0, 0); // Define a hora desejada no dia de HOJE
+    const secondsUntilFire = Math.floor((nextFireDate.getTime() - now.getTime()) / 1000);
+    
+    console.log('⏰ AGENDAMENTO:');
+    console.log('   Horário solicitado:', `${hour}:${minute.toString().padStart(2, '0')}`);
+    console.log('   Agora:', now.toLocaleString('pt-BR'));
+    console.log('   Próximo disparo:', nextFireDate.toLocaleString('pt-BR'));
+    console.log('   Segundos até disparar:', secondsUntilFire);
 
-    // Verifica se o horário já passou (adicionando 1 segundo de margem para evitar o disparo imediato)
-    if (nextFireDate.getTime() <= now.getTime() + 1000) { 
-      // Se passou (ou é exatamente agora), agenda para amanhã
-      nextFireDate.setDate(nextFireDate.getDate() + 1);
-      console.log('⏰ Horário passou hoje. Próximo disparo AMANHÃ:', nextFireDate.toLocaleString());
-    } else {
-      // Se ainda não passou, agenda para hoje
-      console.log('⏰ Próximo disparo hoje:', nextFireDate.toLocaleString());
-    }
-
-
-    // Agenda o alarme usando o trigger de calendário para repetição diária
+    // 🔥 ANDROID: Usa trigger com DATE (não calendar)
+    // iOS: Também funciona com date
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: '💊 HORA DO MEDICAMENTO!',
         body: `${medicationName} - ${dosage}\n⏰ Tome agora!`,
-        sound: 'default', 
-        priority: Notifications.AndroidNotificationPriority.HIGH, 
+        sound: 'default',
+        priority: Notifications.AndroidNotificationPriority.HIGH,
         ...(Platform.OS === 'android' && {
-          channelId: CHANNEL_ID, // Channel ID no conteúdo para Android
+          channelId: CHANNEL_ID,
         }),
       },
-      // 💡 trigger: CalendarTrigger com repeats: true
+      // 🔥 SOLUÇÃO: Usar trigger com DATE para repetição diária
       trigger: {
-        // CORREÇÃO: channelId removido daqui, pois já está no 'content' e causa erro de tipagem no CalendarTrigger
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: hour,
         minute: minute,
-        repeats: true, // Repetição DIÁRIA
-      } as any, // Mantém o 'as any' para evitar erro de tipagem de união de tipos no Expo
+        repeats: true,
+      },
     });
 
-    console.log('✅ Alarme agendado!');
-    console.log('   ID:', notificationId);
-    console.log('   Para (Primeiro Toque):', nextFireDate.toLocaleString());
+    console.log('✅ Alarme agendado com sucesso!');
+    console.log('   ID da notificação:', notificationId);
+    console.log('   Primeiro toque em:', nextFireDate.toLocaleString('pt-BR'));
+    
+    // 🔧 Debug: Verifica se realmente foi agendado
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const thisNotification = scheduled.find(n => n.identifier === notificationId);
+    
+    if (thisNotification) {
+      console.log('✅ Confirmado: Notificação encontrada na fila');
+      console.log('   Trigger:', JSON.stringify(thisNotification.trigger));
+    } else {
+      console.warn('⚠️ AVISO: Notificação NÃO encontrada na fila após agendamento!');
+    }
     
     return { id: notificationId, scheduledDate: nextFireDate };
   } catch (error) {
     console.error('❌ Erro ao agendar o alarme:', error);
+    console.error('   Detalhes:', error);
     return { id: null, scheduledDate: null };
   }
 }
 
 /**
- * Cancela um alarme específico
- */
+ * Cancela um alarme específico
+ */
 export async function cancelAlarm(notificationId: string) {
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
@@ -153,8 +180,8 @@ export async function cancelAlarm(notificationId: string) {
 }
 
 /**
- * Cancela todos os alarmes
- */
+ * Cancela todos os alarmes
+ */
 export async function cancelAllAlarms() {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -165,16 +192,26 @@ export async function cancelAllAlarms() {
 }
 
 /**
- * Lista todos os alarmes agendados
- */
+ * 🔥 MELHORADO: Lista todos os alarmes agendados com mais detalhes
+ */
 export async function listScheduledAlarms() {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    console.log('📋 Alarmes agendados:', scheduled.length);
+    console.log('📋 ===== ALARMES AGENDADOS =====');
+    console.log(`   Total: ${scheduled.length}`);
+    
+    if (scheduled.length === 0) {
+      console.log('   ⚠️ NENHUM alarme agendado! Isso pode indicar um problema.');
+    }
+    
     scheduled.forEach((notif, index) => {
-      // Loga o 'trigger' (mostra se é 'time' com repeats: true)
-      console.log(`   [${index + 1}]`, notif.content.title, '- Trigger:', JSON.stringify(notif.trigger));
+      console.log(`\n   [${index + 1}] ${notif.content.title}`);
+      console.log(`       ID: ${notif.identifier}`);
+      console.log(`       Body: ${notif.content.body}`);
+      console.log(`       Trigger: ${JSON.stringify(notif.trigger, null, 2)}`);
     });
+    console.log('================================\n');
+    
     return scheduled;
   } catch (error) {
     console.error('Erro ao listar alarmes:', error);
@@ -183,8 +220,8 @@ export async function listScheduledAlarms() {
 }
 
 /**
- * Testa o alarme imediatamente (para debug)
- */
+ * Testa o alarme imediatamente (para debug)
+ */
 export async function testAlarmNow() {
   try {
     await Notifications.scheduleNotificationAsync({
@@ -192,16 +229,14 @@ export async function testAlarmNow() {
         title: '🔔 TESTE DE ALARME',
         body: 'Seu sistema de notificações está funcionando corretamente!',
         sound: 'default',
-        priority: Notifications.AndroidNotificationPriority.HIGH, 
+        priority: Notifications.AndroidNotificationPriority.HIGH,
         ...(Platform.OS === 'android' && {
-            channelId: CHANNEL_ID, 
+          channelId: CHANNEL_ID,
         }),
       },
-      // 💡 trigger: SecondsTrigger
       trigger: {
-        type: 'seconds', 
-        seconds: 2, 
-      } as any, // Mantém o 'as any' para evitar erro de tipagem no Expo
+        seconds: 2,
+      },
     });
 
     console.log('🚨 Alarme de teste agendado para 2 segundos!');
