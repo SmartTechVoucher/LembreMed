@@ -58,6 +58,47 @@ export default function MinhaContaScreen() {
     }
   };
   
+  /**
+   * Função para adiar o medicamento por 30 minutos.
+   * NOTE: Você deve implementar a função de banco de dados para salvar o novo horário!
+   */
+  const handleDeferMedication = async (medication: Medication) => {
+    if (!user) return;
+    
+    // 1. Calcular novo horário (+30 minutos)
+    const [hours, minutes] = medication.time.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    date.setMinutes(date.getMinutes() + 30); // Adia por 30 minutos
+
+    const newTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    
+    try {
+      // 2. SIMULAÇÃO: Cancelar alarme antigo
+      const oldAlarmId = await getMedicationNotificationId(medication.id);
+      if (oldAlarmId) {
+        await cancelAlarm(oldAlarmId);
+        // Em um app real, aqui você agendaria o novo alarme para 'newTime'
+        // await scheduleAlarm(medication.id, newTime, ...);
+      }
+
+      // ** 3. AQUI DEVE ENTRAR A CHAMADA AO BANCO DE DADOS **
+      // Ex: const deferResult = await updateMedicationTime(medication.id, newTime); 
+      // if (!deferResult.success) throw new Error(deferResult.error);
+
+      // Simulação de Sucesso
+      Alert.alert(
+        'Medicamento Adiado',
+        `${medication.name} adiado com sucesso. Novo horário: ${newTime}. 
+         ** Lembre-se de implementar a função de banco de dados para persistir o novo horário! **`
+      );
+      loadMedications(); // Recarrega lista (assumindo que o DB foi atualizado)
+    } catch (error) {
+      console.error('Erro ao adiar medicamento:', error);
+      Alert.alert('Erro', 'Não foi possível adiar o medicamento. Verifique a implementação do DB.');
+    }
+  };
+  
 
   const handleDeleteMedication = async (medicationId: number, medicationName: string) => {
     Alert.alert(
@@ -102,39 +143,72 @@ export default function MinhaContaScreen() {
   const renderMedication = ({ item }: { item: Medication }) => (
     <View style={[
       styles.medicationCard,
-      item.taken_today === 1 && styles.medicationCardTaken
+      item.taken_today === 1 && styles.medicationCardTaken 
     ]}>
+      {/* ROW 1 (Header): Horário em formato de badge (pill) e Ícones de Ação */}
       <View style={styles.medicationHeader}>
+        {/* Horário (Badge) */}
         <View style={styles.timeContainer}>
-          <Ionicons name="time-outline" size={18} color="#2A9D8F" />
-          <Text style={styles.medicationTime}>{item.time}</Text>
+          <Ionicons name="time-outline" size={16} color="#FFF" />
+          <Text style={styles.medicationTimeBadge}>{item.time}</Text>
         </View>
 
+        {/* Ícones de Ação: "Tomando" (Checkmark), ADIAR, Editar, Excluir */}
         <View style={styles.actionIcons}>
-          <TouchableOpacity onPress={() => handleToggleTaken(item, item.taken_today === 1)}>
+          
+          {/* Ícone de "Tomado" (Checkmark) */}
+          <TouchableOpacity 
+            onPress={() => handleToggleTaken(item, item.taken_today === 1)}
+            style={styles.actionButton}
+            disabled={item.taken_today === 1} // Não pode marcar como tomado se já foi
+          >
             <Ionicons 
               name={item.taken_today === 1 ? "checkmark-circle" : "checkmark-circle-outline"} 
-              size={24} 
-              color={item.taken_today === 1 ? "#4CAF50" : "#999"} 
+              size={22} 
+              color={item.taken_today === 1 ? "#38A169" : "#666"} 
+            />
+          </TouchableOpacity>
+          
+          {/* ÍCONE DE ADIAR (NOVO) */}
+          <TouchableOpacity 
+            onPress={() => handleDeferMedication(item)}
+            style={styles.actionButton}
+            disabled={item.taken_today === 1} // Não pode adiar se já foi tomado
+          >
+            <Ionicons 
+              name="reload-circle-outline" // Ícone que sugere reagendamento/adiamento
+              size={22} 
+              color={item.taken_today === 1 ? "#ccc" : "#E6A23C"} // Amarelo/Laranja
             />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => handleEditMedication(item)}>
+          {/* Ícone de Editar */}
+          <TouchableOpacity 
+            onPress={() => handleEditMedication(item)}
+            style={styles.actionButton}
+          >
             <Ionicons name="create-outline" size={20} color="#2A9D8F" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => handleDeleteMedication(item.id, item.name)}>
+          {/* Ícone de Excluir */}
+          <TouchableOpacity 
+            onPress={() => handleDeleteMedication(item.id, item.name)}
+            style={styles.actionButton}
+          >
             <Ionicons name="trash-outline" size={20} color="#E76F51" />
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* ROW 2 (Body): Ícone do Medicamento (Folha) e Nome/Dosagem */}
       <View style={styles.medicationBody}>
         <Ionicons 
-          name="medical-outline" 
+          name="leaf-outline" 
           size={24} 
-          color={item.taken_today === 1 ? "#4CAF50" : "#2A9D8F"} 
+          color={item.taken_today === 1 ? "#38A169" : "#2A9D8F"} 
+          style={styles.medicationIcon}
         />
+        
         <View style={styles.medicationInfo}>
           <Text style={[
             styles.medicationName,
@@ -193,7 +267,7 @@ export default function MinhaContaScreen() {
             <Image source={{ uri: user.profile_image }} style={styles.profileImage} />
           ) : (
             <View style={styles.profileImagePlaceholder}>
-              <Ionicons name="person" size={50} color="#999" />
+              <Ionicons name="person" size={50} color="#FFF" /> 
             </View>
           )}
         </View>
@@ -222,7 +296,7 @@ export default function MinhaContaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC',
+    backgroundColor: '#F5F5DC', // Fundo em tom de bege claro
   },
   header: {
     flexDirection: 'row',
@@ -250,15 +324,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notificationDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#7B68EE',
-  },
   profileSection: {
     alignItems: 'center',
     paddingVertical: 20,
@@ -271,13 +336,13 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    borderColor: '#F5B895',
+    borderColor: '#2A9D8F',
   },
   profileImagePlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#F5B895',
+    backgroundColor: '#2A9D8F',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -298,63 +363,85 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
+  
+  // --- ESTILOS DO CARD REFATORADOS ---
   medicationCard: {
-    backgroundColor: '#B8E6E8',
+    backgroundColor: '#E8F5E9', 
     borderRadius: 15,
     padding: 15,
     marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
   },
   medicationCardTaken: {
-    backgroundColor: '#E8F5E9',
-    opacity: 0.7,
+    backgroundColor: '#D1EAD8', 
+    opacity: 1, 
   },
   medicationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12, 
   },
+  
+  // Estilos para o Horário (Badge/Pill)
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    backgroundColor: '#2A9D8F', 
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20, 
   },
-  medicationTime: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2A9D8F',
+  medicationTimeBadge: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF', 
     marginLeft: 5,
   },
-  medicationBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  medicationInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  medicationName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 4,
-  },
-  medicationNameTaken: {
-    textDecorationLine: 'line-through',
-    color: '#4CAF50',
-  },
-  medicationDosage: {
-    fontSize: 13,
-    color: '#555',
-  },
+  
+  // Ícones de Ação (Tomando, Adiar, Editar, Excluir)
   actionIcons: {
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
   },
+  actionButton: {
+    padding: 2, 
+  },
+  
+  // Corpo do Medicamento (Ícone + Bloco de Informação)
+  medicationBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start', 
+  },
+  medicationIcon: {
+    marginRight: 12,
+  },
+  medicationInfo: {
+    flex: 1,
+  },
+  medicationName: {
+    fontSize: 16,
+    fontWeight: '800', 
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  medicationNameTaken: {
+    textDecorationLine: 'line-through',
+    color: '#38A169', 
+  },
+  medicationDosage: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 18,
+  },
+  // --- ESTILOS DO CARD REFATORADOS ---
+  
+  // Empty State styles (Mantidos)
   emptyContainer: {
     justifyContent: 'center',
     alignItems: 'center',

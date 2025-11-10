@@ -1,5 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
+const db = SQLite.openDatabaseSync('lembremed_v4.db');
+
 export interface User {
   id: number;
   email: string;
@@ -11,7 +13,11 @@ export interface Medication {
   id: number;
   user_id: number;
   name: string;
-  dosage: string;
+  concentration: string;   
+  quantity: string;        
+  unit_type: string;       
+  dosage: string;        
+
   frequency: string;
   time: string;
   instructions: string | null;
@@ -23,35 +29,60 @@ export interface Medication {
   created_at: string;
 }
 
-const db = SQLite.openDatabaseSync('lembremed_v4.db');
+export const createMedicationHistoryTable = async (): Promise<void> => {
+  try {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS medication_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        medication_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        medication_name TEXT NOT NULL,
+        dosage TEXT NOT NULL, 
+        scheduled_time TEXT NOT NULL,
+        taken_time TEXT,
+        status TEXT NOT NULL,
+        date TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (medication_id) REFERENCES medications (id),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+      );
+    `);
+    console.log('✅ Tabela medication_history criada');
+  } catch (error) {
+    console.error('❌ Erro ao criar tabela de histórico:', error);
+  }
+};
 
 export const migrateDatabase = async (): Promise<void> => {
   try {
-    try {
-      await db.execAsync(`
-        ALTER TABLE medications ADD COLUMN notification_id TEXT;
-      `);
-      console.log('✅ Coluna notification_id adicionada');
-    } catch (error: any) {
-      if (error.message.includes('duplicate column')) {
-        console.log('✅ Coluna notification_id já existe');
-      }
+    const columns = [
+        { name: 'notification_id', type: 'TEXT' },
+        { name: 'taken_today', type: 'INTEGER DEFAULT 0' },
+        { name: 'concentration', type: 'TEXT' },
+        { name: 'quantity', type: 'TEXT' },
+        { name: 'unit_type', type: 'TEXT' },
+    ];
+
+    for (const column of columns) {
+        try {
+            await db.execAsync(`
+                ALTER TABLE medications ADD COLUMN ${column.name} ${column.type};
+            `);
+            console.log(`✅ Coluna ${column.name} adicionada`);
+        } catch (error: any) {
+            if (error.message.includes('duplicate column')) {
+                console.log(`✅ Coluna ${column.name} já existe`);
+            } else {
+                 console.error(`❌ Erro ao migrar coluna ${column.name}:`, error);
+            }
+        }
     }
 
-    try {
-      await db.execAsync(`
-        ALTER TABLE medications ADD COLUMN taken_today INTEGER DEFAULT 0;
-      `);
-      console.log('✅ Coluna taken_today adicionada');
-    } catch (error: any) {
-      if (error.message.includes('duplicate column')) {
-        console.log('✅ Coluna taken_today já existe');
-      }
-    }
   } catch (error) {
     console.error('❌ Erro na migração de colunas:', error);
   }
 };
+
 
 export const initDatabase = async (): Promise<void> => {
   try {
@@ -71,7 +102,10 @@ export const initDatabase = async (): Promise<void> => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
-        dosage TEXT,
+        dosage TEXT,              
+        concentration TEXT,       
+        quantity TEXT,            
+        unit_type TEXT,           
         frequency TEXT,
         time TEXT,
         instructions TEXT,
@@ -200,7 +234,9 @@ export const updateUserProfile = async (
 export const addMedication = async (
   userId: number,
   name: string,
-  dosage: string,
+  concentration: string,
+  quantity: string,     
+  unitType: string,     
   frequency: string,
   time: string,
   instructions?: string,
@@ -209,14 +245,19 @@ export const addMedication = async (
   notificationId?: string
 ): Promise<{ success: boolean; medicationId?: number; error?: string }> => {
   try {
+    const fullDoseString = `${quantity.trim()} ${unitType.trim()} (${concentration.trim()})`;
+
     const result = await db.runAsync(
       `INSERT INTO medications (
-        user_id, name, dosage, frequency, time, instructions, start_date, end_date, notification_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        user_id, name, dosage, concentration, quantity, unit_type, frequency, time, instructions, start_date, end_date, notification_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         name,
-        dosage,
+        fullDoseString, 
+        concentration,  
+        quantity,       
+        unitType,       
         frequency,
         time,
         instructions || null,
@@ -279,7 +320,9 @@ export const getMedicationNotificationId = async (
 export const updateMedication = async (
   medicationId: number,
   name: string,
-  dosage: string,
+  concentration: string, 
+  quantity: string,      
+  unitType: string,      
   frequency: string,
   time: string,
   instructions?: string,
@@ -287,13 +330,18 @@ export const updateMedication = async (
   endDate?: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    const fullDoseString = `${quantity.trim()} ${unitType.trim()} (${concentration.trim()})`;
+
     await db.runAsync(
       `UPDATE medications
-        SET name = ?, dosage = ?, frequency = ?, time = ?, instructions = ?, start_date = ?, end_date = ?
+        SET name = ?, dosage = ?, concentration = ?, quantity = ?, unit_type = ?, frequency = ?, time = ?, instructions = ?, start_date = ?, end_date = ?
         WHERE id = ?`,
       [
         name,
-        dosage,
+        fullDoseString, 
+        concentration,  
+        quantity,       
+        unitType,       
         frequency,
         time,
         instructions || null,
@@ -315,7 +363,7 @@ export const markMedicationAsTaken = async (
   taken: boolean,
   userId: number,
   medicationName: string,
-  dosage: string,
+  fullDoseString: string, 
   scheduledTime: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
@@ -325,7 +373,7 @@ export const markMedicationAsTaken = async (
     );
 
     if (taken) {
-      await addToHistory(medicationId, userId, medicationName, dosage, scheduledTime, 'taken');
+      await addToHistory(medicationId, userId, medicationName, fullDoseString, scheduledTime, 'taken');
     }
 
     console.log(`✅ Medication ${taken ? 'marcado como tomado' : 'desmarcado'}`);
@@ -345,35 +393,11 @@ export const resetDailyMedications = async (): Promise<void> => {
   }
 };
 
-export const createMedicationHistoryTable = async (): Promise<void> => {
-  try {
-    await db.execAsync(`
-      CREATE TABLE IF NOT EXISTS medication_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        medication_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        medication_name TEXT NOT NULL,
-        dosage TEXT NOT NULL,
-        scheduled_time TEXT NOT NULL,
-        taken_time TEXT,
-        status TEXT NOT NULL,
-        date TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (medication_id) REFERENCES medications (id),
-        FOREIGN KEY (user_id) REFERENCES users (id)
-      );
-    `);
-    console.log('✅ Tabela medication_history criada');
-  } catch (error) {
-    console.error('❌ Erro ao criar tabela de histórico:', error);
-  }
-};
-
 export const addToHistory = async (
   medicationId: number,
   userId: number,
   medicationName: string,
-  dosage: string,
+  fullDoseString: string, 
   scheduledTime: string,
   status: 'taken' | 'missed'
 ): Promise<void> => {
@@ -389,7 +413,7 @@ export const addToHistory = async (
       `INSERT INTO medication_history 
         (medication_id, user_id, medication_name, dosage, scheduled_time, taken_time, status, date)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [medicationId, userId, medicationName, dosage, scheduledTime, takenTime, status, date]
+      [medicationId, userId, medicationName, fullDoseString, scheduledTime, takenTime, status, date]
     );
 
     console.log(`📝 Histórico registrado: ${medicationName} - ${status}`);
