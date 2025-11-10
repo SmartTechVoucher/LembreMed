@@ -1,6 +1,7 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { updateMedicationAlarmId } from '../../database/database';
 
 const CHANNEL_ID = 'medication-alarm';
 
@@ -69,11 +70,89 @@ function getNextFireDate(hour: number, minute: number): Date {
 }
 
 /**
- * Agenda um alarme usando Date (timestamp)
- * Esta abordagem funciona tanto no Android quanto no iOS
+ * Agenda uma notificação para um medicamento específico
+ * @param medicationId ID do medicamento no banco de dados
  * @param medicationName Nome do medicamento
  * @param dosage Dosagem
- * @param alarmTime Objeto Date com o horário (hora e minuto) desejado
+ * @param time Horário no formato "HH:MM"
+ * @param frequency Frequência (não usado no momento, mas pode ser útil no futuro)
+ * @returns ID da notificação agendada ou null em caso de erro
+ */
+export async function scheduleNotification(
+  medicationId: number,
+  medicationName: string,
+  dosage: string,
+  time: string,
+  frequency?: string
+): Promise<string | null> {
+  try {
+    const permissionGranted = await requestNotificationPermission();
+
+    if (!permissionGranted) {
+      console.warn('❌ Permissão negada. A notificação não será agendada.');
+      return null;
+    }
+
+    await configureNotificationChannel();
+
+    // Parse do horário (formato "HH:MM")
+    const [hourStr, minuteStr] = time.split(':');
+    const hour = parseInt(hourStr, 10);
+    const minute = parseInt(minuteStr, 10);
+
+    if (isNaN(hour) || isNaN(minute)) {
+      console.error('❌ Horário inválido:', time);
+      return null;
+    }
+    
+    const nextFireDate = getNextFireDate(hour, minute);
+    
+    console.log('⏰ AGENDANDO NOTIFICAÇÃO:');
+    console.log('   Medicamento:', medicationName);
+    console.log('   Horário:', time);
+    console.log('   Próximo disparo:', nextFireDate.toLocaleString('pt-BR'));
+
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '💊 HORA DO MEDICAMENTO!',
+        body: `${medicationName} - ${dosage}\n⏰ Tome agora!`,
+        sound: 'default',
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        data: {
+          medicationId,
+          medicationName,
+          dosage,
+          time,
+        },
+        ...(Platform.OS === 'android' && {
+          channelId: CHANNEL_ID,
+        }),
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: hour,
+        minute: minute,
+        repeats: true,
+      },
+    });
+
+    // Atualiza o ID da notificação no banco de dados
+    await updateMedicationAlarmId(medicationId, notificationId);
+
+    console.log('✅ Notificação agendada com sucesso!');
+    console.log('   ID da notificação:', notificationId);
+    console.log('   Medicamento ID:', medicationId);
+    
+    return notificationId;
+  } catch (error) {
+    console.error('❌ Erro ao agendar notificação:', error);
+    return null;
+  }
+}
+
+/**
+ * Agenda um alarme usando Date (timestamp) - MANTIDA PARA COMPATIBILIDADE
+ * @deprecated Use scheduleNotification ao invés desta função
  */
 export async function scheduleMedicationAlarm(
   medicationName: string,
@@ -116,7 +195,6 @@ export async function scheduleMedicationAlarm(
           channelId: CHANNEL_ID,
         }),
       },
-
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: hour,
@@ -147,13 +225,25 @@ export async function scheduleMedicationAlarm(
   }
 }
 
-export async function cancelAlarm(notificationId: string) {
+/**
+ * Cancela uma notificação específica
+ * @param notificationId ID da notificação a ser cancelada
+ */
+export async function cancelNotification(notificationId: string): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
-    console.log('🧹 Alarme cancelado:', notificationId);
+    console.log('🧹 Notificação cancelada:', notificationId);
   } catch (error) {
-    console.error('Erro ao cancelar alarme:', error);
+    console.error('❌ Erro ao cancelar notificação:', error);
   }
+}
+
+/**
+ * Cancela um alarme (alias para cancelNotification)
+ * @deprecated Use cancelNotification ao invés desta função
+ */
+export async function cancelAlarm(notificationId: string) {
+  return cancelNotification(notificationId);
 }
 
 export async function cancelAllAlarms() {
@@ -164,7 +254,6 @@ export async function cancelAllAlarms() {
     console.error('Erro ao cancelar todos os alarmes:', error);
   }
 }
-
 
 export async function listScheduledAlarms() {
   try {

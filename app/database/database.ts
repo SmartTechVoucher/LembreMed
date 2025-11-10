@@ -13,10 +13,10 @@ export interface Medication {
   id: number;
   user_id: number;
   name: string;
-  concentration: string;   
-  quantity: string;        
-  unit_type: string;       
-  dosage: string;        
+  concentration: string; 
+  quantity: string; 
+  unit_type: string; 
+  dosage: string; 
 
   frequency: string;
   time: string;
@@ -73,7 +73,7 @@ export const migrateDatabase = async (): Promise<void> => {
             if (error.message.includes('duplicate column')) {
                 console.log(`✅ Coluna ${column.name} já existe`);
             } else {
-                 console.error(`❌ Erro ao migrar coluna ${column.name}:`, error);
+                console.error(`❌ Erro ao migrar coluna ${column.name}:`, error);
             }
         }
     }
@@ -102,10 +102,10 @@ export const initDatabase = async (): Promise<void> => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
-        dosage TEXT,              
-        concentration TEXT,       
-        quantity TEXT,            
-        unit_type TEXT,           
+        dosage TEXT, 
+        concentration TEXT, 
+        quantity TEXT, 
+        unit_type TEXT, 
         frequency TEXT,
         time TEXT,
         instructions TEXT,
@@ -235,8 +235,8 @@ export const addMedication = async (
   userId: number,
   name: string,
   concentration: string,
-  quantity: string,     
-  unitType: string,     
+  quantity: string, 
+  unitType: string, 
   frequency: string,
   time: string,
   instructions?: string,
@@ -255,9 +255,9 @@ export const addMedication = async (
         userId,
         name,
         fullDoseString, 
-        concentration,  
-        quantity,       
-        unitType,       
+        concentration, 
+        quantity, 
+        unitType, 
         frequency,
         time,
         instructions || null,
@@ -321,8 +321,8 @@ export const updateMedication = async (
   medicationId: number,
   name: string,
   concentration: string, 
-  quantity: string,      
-  unitType: string,      
+  quantity: string, 
+  unitType: string, 
   frequency: string,
   time: string,
   instructions?: string,
@@ -339,9 +339,9 @@ export const updateMedication = async (
       [
         name,
         fullDoseString, 
-        concentration,  
-        quantity,       
-        unitType,       
+        concentration, 
+        quantity, 
+        unitType, 
         frequency,
         time,
         instructions || null,
@@ -357,6 +357,28 @@ export const updateMedication = async (
     return { success: false, error: 'Erro ao atualizar medicamento' };
   }
 };
+
+/**
+ * Função para adiar o horário do medicamento no banco de dados.
+ * Atualiza o 'time', reseta 'taken_today' para 0 e limpa 'notification_id'.
+ */
+export const updateMedicationTime = async (
+    medicationId: number,
+    newTime: string
+): Promise<{ success: boolean; error?: string }> => {
+    try {
+        await db.runAsync(
+            'UPDATE medications SET time = ?, taken_today = 0, notification_id = NULL WHERE id = ?',
+            [newTime, medicationId]
+        );
+        console.log(`✅ Horário de medicamento ${medicationId} adiado para ${newTime}. taken_today resetado.`);
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Erro ao adiar horário de medicamento:', error);
+        return { success: false, error: 'Erro ao atualizar horário do medicamento no DB' };
+    }
+};
+
 
 export const markMedicationAsTaken = async (
   medicationId: number,

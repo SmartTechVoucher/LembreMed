@@ -18,8 +18,9 @@ import {
   getUserMedications,
   markMedicationAsTaken,
   Medication,
+  updateMedicationTime,
 } from '../database/database';
-import { cancelAlarm } from '../src/services/alarmService';
+import { cancelNotification, scheduleNotification } from '../src/services/alarmService';
 
 export default function MinhaContaScreen() {
   const { user } = useAuth();
@@ -60,7 +61,7 @@ export default function MinhaContaScreen() {
   
   /**
    * Função para adiar o medicamento por 30 minutos.
-   * NOTE: Você deve implementar a função de banco de dados para salvar o novo horário!
+   * Atualiza o horário no banco de dados e reagenda a notificação.
    */
   const handleDeferMedication = async (medication: Medication) => {
     if (!user) return;
@@ -69,36 +70,55 @@ export default function MinhaContaScreen() {
     const [hours, minutes] = medication.time.split(':').map(Number);
     const date = new Date();
     date.setHours(hours, minutes, 0, 0);
-    date.setMinutes(date.getMinutes() + 30); // Adia por 30 minutos
+    date.setMinutes(date.getMinutes() + 30);
 
     const newTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
     
     try {
-      // 2. SIMULAÇÃO: Cancelar alarme antigo
-      const oldAlarmId = await getMedicationNotificationId(medication.id);
-      if (oldAlarmId) {
-        await cancelAlarm(oldAlarmId);
-        // Em um app real, aqui você agendaria o novo alarme para 'newTime'
-        // await scheduleAlarm(medication.id, newTime, ...);
+      // 2. Cancelar notificação antiga
+      const oldNotificationId = await getMedicationNotificationId(medication.id);
+      if (oldNotificationId) {
+        await cancelNotification(oldNotificationId);
+        console.log(`🔕 Notificação antiga cancelada: ${oldNotificationId}`);
       }
 
-      // ** 3. AQUI DEVE ENTRAR A CHAMADA AO BANCO DE DADOS **
-      // Ex: const deferResult = await updateMedicationTime(medication.id, newTime); 
-      // if (!deferResult.success) throw new Error(deferResult.error);
+      // 3. Atualizar horário no banco de dados
+      const updateResult = await updateMedicationTime(medication.id, newTime);
+      
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Erro ao atualizar horário');
+      }
 
-      // Simulação de Sucesso
+      // 4. Agendar nova notificação
+      const newNotificationId = await scheduleNotification(
+        medication.id,
+        medication.name,
+        medication.dosage,
+        newTime,
+        medication.frequency
+      );
+
+      if (newNotificationId) {
+        console.log(`🔔 Nova notificação agendada: ${newNotificationId} para ${newTime}`);
+      }
+
+      // 5. Mostrar confirmação e recarregar lista
       Alert.alert(
         'Medicamento Adiado',
-        `${medication.name} adiado com sucesso. Novo horário: ${newTime}. 
-         ** Lembre-se de implementar a função de banco de dados para persistir o novo horário! **`
+        `${medication.name} foi adiado com sucesso!\n\nNovo horário: ${newTime}`,
+        [{ text: 'OK' }]
       );
-      loadMedications(); // Recarrega lista (assumindo que o DB foi atualizado)
+      
+      await loadMedications();
+      
     } catch (error) {
-      console.error('Erro ao adiar medicamento:', error);
-      Alert.alert('Erro', 'Não foi possível adiar o medicamento. Verifique a implementação do DB.');
+      console.error('❌ Erro ao adiar medicamento:', error);
+      Alert.alert(
+        'Erro', 
+        'Não foi possível adiar o medicamento. Tente novamente.'
+      );
     }
   };
-  
 
   const handleDeleteMedication = async (medicationId: number, medicationName: string) => {
     Alert.alert(
@@ -111,15 +131,15 @@ export default function MinhaContaScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const alarmId = await getMedicationNotificationId(medicationId);
-              if (alarmId) {
-                await cancelAlarm(alarmId);
+              const notificationId = await getMedicationNotificationId(medicationId);
+              if (notificationId) {
+                await cancelNotification(notificationId);
               }
 
               const result = await deleteMedication(medicationId);
               if (result.success) {
                 await loadMedications();
-                Alert.alert('Sucesso', 'Medicamento e alarme excluídos com sucesso!');
+                Alert.alert('Sucesso', 'Medicamento e notificação excluídos com sucesso!');
               } else {
                 Alert.alert('Erro', result.error || 'Erro ao excluir medicamento');
               }
@@ -160,7 +180,7 @@ export default function MinhaContaScreen() {
           <TouchableOpacity 
             onPress={() => handleToggleTaken(item, item.taken_today === 1)}
             style={styles.actionButton}
-            disabled={item.taken_today === 1} // Não pode marcar como tomado se já foi
+            disabled={item.taken_today === 1}
           >
             <Ionicons 
               name={item.taken_today === 1 ? "checkmark-circle" : "checkmark-circle-outline"} 
@@ -169,16 +189,16 @@ export default function MinhaContaScreen() {
             />
           </TouchableOpacity>
           
-          {/* ÍCONE DE ADIAR (NOVO) */}
+          {/* ÍCONE DE ADIAR */}
           <TouchableOpacity 
             onPress={() => handleDeferMedication(item)}
             style={styles.actionButton}
-            disabled={item.taken_today === 1} // Não pode adiar se já foi tomado
+            disabled={item.taken_today === 1}
           >
             <Ionicons 
-              name="reload-circle-outline" // Ícone que sugere reagendamento/adiamento
+              name="reload-circle-outline"
               size={22} 
-              color={item.taken_today === 1 ? "#ccc" : "#E6A23C"} // Amarelo/Laranja
+              color={item.taken_today === 1 ? "#ccc" : "#E6A23C"}
             />
           </TouchableOpacity>
 
@@ -258,7 +278,6 @@ export default function MinhaContaScreen() {
             <Ionicons name="settings-outline" size={24} color="#7B68EE" /> 
           </View>
         </TouchableOpacity>
-
       </View>
 
       <View style={styles.profileSection}>
@@ -296,7 +315,7 @@ export default function MinhaContaScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC', // Fundo em tom de bege claro
+    backgroundColor: '#F5F5DC',
   },
   header: {
     flexDirection: 'row',
@@ -363,8 +382,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
-  
-  // --- ESTILOS DO CARD REFATORADOS ---
   medicationCard: {
     backgroundColor: '#E8F5E9', 
     borderRadius: 15,
@@ -386,8 +403,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12, 
   },
-  
-  // Estilos para o Horário (Badge/Pill)
   timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,8 +417,6 @@ const styles = StyleSheet.create({
     color: '#FFF', 
     marginLeft: 5,
   },
-  
-  // Ícones de Ação (Tomando, Adiar, Editar, Excluir)
   actionIcons: {
     flexDirection: 'row',
     gap: 12,
@@ -412,8 +425,6 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 2, 
   },
-  
-  // Corpo do Medicamento (Ícone + Bloco de Informação)
   medicationBody: {
     flexDirection: 'row',
     alignItems: 'flex-start', 
@@ -439,9 +450,6 @@ const styles = StyleSheet.create({
     color: '#555',
     lineHeight: 18,
   },
-  // --- ESTILOS DO CARD REFATORADOS ---
-  
-  // Empty State styles (Mantidos)
   emptyContainer: {
     justifyContent: 'center',
     alignItems: 'center',
