@@ -56,12 +56,17 @@ export async function configureNotificationChannel() {
   }
 }
 
+/**
+ * Calcula a próxima data/hora em que a notificação deve disparar
+ * Se o horário já passou hoje, agenda para amanhã
+ */
 function getNextFireDate(hour: number, minute: number): Date {
   const now = new Date();
   const nextFire = new Date();
   
   nextFire.setHours(hour, minute, 0, 0);
   
+  // Se o horário já passou hoje, agenda para amanhã
   if (nextFire.getTime() <= now.getTime()) {
     nextFire.setDate(nextFire.getDate() + 1);
   }
@@ -71,11 +76,14 @@ function getNextFireDate(hour: number, minute: number): Date {
 
 /**
  * Agenda uma notificação para um medicamento específico
+ * IMPORTANTE: Esta função sempre agenda para o próximo horário disponível
+ * Se o horário já passou hoje, agenda para amanhã automaticamente
+ * 
  * @param medicationId ID do medicamento no banco de dados
  * @param medicationName Nome do medicamento
  * @param dosage Dosagem
  * @param time Horário no formato "HH:MM"
- * @param frequency Frequência (não usado no momento, mas pode ser útil no futuro)
+ * @param frequency Frequência (usado para logging)
  * @returns ID da notificação agendada ou null em caso de erro
  */
 export async function scheduleNotification(
@@ -106,11 +114,14 @@ export async function scheduleNotification(
     }
     
     const nextFireDate = getNextFireDate(hour, minute);
+    const now = new Date();
+    const isForToday = nextFireDate.toDateString() === now.toDateString();
     
     console.log('⏰ AGENDANDO NOTIFICAÇÃO:');
     console.log('   Medicamento:', medicationName);
-    console.log('   Horário:', time);
+    console.log('   Horário configurado:', time);
     console.log('   Próximo disparo:', nextFireDate.toLocaleString('pt-BR'));
+    console.log('   Dispara hoje?', isForToday ? '✅ SIM' : '❌ NÃO (amanhã)');
 
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {

@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   deleteMedication,
   getMedicationNotificationId,
-  getUserMedications,
+  getTodayMedications,
   markMedicationAsTaken,
   Medication,
   updateMedicationTime,
@@ -35,8 +35,10 @@ export default function MinhaContaScreen() {
   const loadMedications = async () => {
     if (!user?.id) return;
     try {
-      const meds = await getUserMedications(user.id); 
+      const meds = await getTodayMedications(user.id); 
       setMedications(meds);
+      
+      console.log(`📱 Tela atualizada: ${meds.length} medicamento(s) visível(is)`);
     } catch (error) {
       console.error('Erro ao carregar medicamentos:', error);
     }
@@ -55,18 +57,35 @@ export default function MinhaContaScreen() {
     );
     
     if (result.success) {
-      loadMedications();
+      if (!currentStatus) {
+        const newNotificationId = await scheduleNotification(
+          medication.id,
+          medication.name,
+          medication.dosage,
+          medication.time,
+          medication.frequency
+        );
+
+        if (newNotificationId) {
+          console.log(`✅ Medicamento marcado como tomado. Próxima dose agendada: ${newNotificationId}`);
+        }
+      }
+      
+      await loadMedications();
+      
+      if (!currentStatus) {
+        Alert.alert(
+          'Medicamento Tomado ✅',
+          `${medication.name} foi marcado como tomado!\n\nVocê verá este medicamento novamente amanhã no horário ${medication.time}.`,
+          [{ text: 'OK' }]
+        );
+      }
     }
   };
   
-  /**
-   * Função para adiar o medicamento por 30 minutos.
-   * Atualiza o horário no banco de dados e reagenda a notificação.
-   */
   const handleDeferMedication = async (medication: Medication) => {
     if (!user) return;
-    
-    // 1. Calcular novo horário (+30 minutos)
+
     const [hours, minutes] = medication.time.split(':').map(Number);
     const date = new Date();
     date.setHours(hours, minutes, 0, 0);
@@ -75,21 +94,18 @@ export default function MinhaContaScreen() {
     const newTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
     
     try {
-      // 2. Cancelar notificação antiga
       const oldNotificationId = await getMedicationNotificationId(medication.id);
       if (oldNotificationId) {
         await cancelNotification(oldNotificationId);
         console.log(`🔕 Notificação antiga cancelada: ${oldNotificationId}`);
       }
 
-      // 3. Atualizar horário no banco de dados
       const updateResult = await updateMedicationTime(medication.id, newTime);
       
       if (!updateResult.success) {
         throw new Error(updateResult.error || 'Erro ao atualizar horário');
       }
 
-      // 4. Agendar nova notificação
       const newNotificationId = await scheduleNotification(
         medication.id,
         medication.name,
@@ -102,10 +118,9 @@ export default function MinhaContaScreen() {
         console.log(`🔔 Nova notificação agendada: ${newNotificationId} para ${newTime}`);
       }
 
-      // 5. Mostrar confirmação e recarregar lista
       Alert.alert(
-        'Medicamento Adiado',
-        `${medication.name} foi adiado com sucesso!\n\nNovo horário: ${newTime}`,
+        'Medicamento Adiado ⏰',
+        `${medication.name} foi adiado para ${newTime}!\n`,
         [{ text: 'OK' }]
       );
       
@@ -165,18 +180,14 @@ export default function MinhaContaScreen() {
       styles.medicationCard,
       item.taken_today === 1 && styles.medicationCardTaken 
     ]}>
-      {/* ROW 1 (Header): Horário em formato de badge (pill) e Ícones de Ação */}
       <View style={styles.medicationHeader}>
-        {/* Horário (Badge) */}
         <View style={styles.timeContainer}>
           <Ionicons name="time-outline" size={16} color="#FFF" />
           <Text style={styles.medicationTimeBadge}>{item.time}</Text>
         </View>
 
-        {/* Ícones de Ação: "Tomando" (Checkmark), ADIAR, Editar, Excluir */}
         <View style={styles.actionIcons}>
-          
-          {/* Ícone de "Tomado" (Checkmark) */}
+
           <TouchableOpacity 
             onPress={() => handleToggleTaken(item, item.taken_today === 1)}
             style={styles.actionButton}
@@ -189,7 +200,6 @@ export default function MinhaContaScreen() {
             />
           </TouchableOpacity>
           
-          {/* ÍCONE DE ADIAR */}
           <TouchableOpacity 
             onPress={() => handleDeferMedication(item)}
             style={styles.actionButton}
@@ -202,7 +212,6 @@ export default function MinhaContaScreen() {
             />
           </TouchableOpacity>
 
-          {/* Ícone de Editar */}
           <TouchableOpacity 
             onPress={() => handleEditMedication(item)}
             style={styles.actionButton}
@@ -210,7 +219,6 @@ export default function MinhaContaScreen() {
             <Ionicons name="create-outline" size={20} color="#2A9D8F" />
           </TouchableOpacity>
 
-          {/* Ícone de Excluir */}
           <TouchableOpacity 
             onPress={() => handleDeleteMedication(item.id, item.name)}
             style={styles.actionButton}
@@ -220,7 +228,6 @@ export default function MinhaContaScreen() {
         </View>
       </View>
 
-      {/* ROW 2 (Body): Ícone do Medicamento (Folha) e Nome/Dosagem */}
       <View style={styles.medicationBody}>
         <Ionicons 
           name="leaf-outline" 
@@ -251,9 +258,12 @@ export default function MinhaContaScreen() {
         style={styles.emptyImage}
         resizeMode="contain"
       />
-      <Text style={styles.emptyTitle}>Cadastre seus medicamentos</Text>
+      <Text style={styles.emptyTitle}>Nenhum medicamento para hoje</Text>
       <Text style={styles.emptySubtitle}>
-        para que possamos ajudá-lo a não esquecer{'\n'}nenhum horário!
+        Você não tem medicamentos agendados{'\n'}para o horário de hoje.
+      </Text>
+      <Text style={styles.emptyHint}>
+        💡 Medicamentos cadastrados com horários{'\n'}futuros aparecerão aqui automaticamente!
       </Text>
 
       <TouchableOpacity
@@ -298,13 +308,16 @@ export default function MinhaContaScreen() {
       </View>
 
       {medications.length > 0 ? (
-        <FlatList
-          data={medications}
-          renderItem={renderMedication}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.medicationsList}
-          showsVerticalScrollIndicator={false}
-        />
+        <>
+          <Text style={styles.sectionTitle}>📋 Medicamentos de Hoje</Text>
+          <FlatList
+            data={medications}
+            renderItem={renderMedication}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.medicationsList}
+            showsVerticalScrollIndicator={false}
+          />
+        </>
       ) : (
         renderEmptyState()
       )}
@@ -377,6 +390,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 5,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   medicationsList: {
     paddingHorizontal: 20,
@@ -459,7 +479,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 20,
     paddingVertical: 40,
-    height: 440,
+    minHeight: 440,
   },
   emptyImage: {
     width: 200,
@@ -478,7 +498,15 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 10,
+  },
+  emptyHint: {
+    fontSize: 12,
+    color: '#2A9D8F',
+    textAlign: 'center',
+    lineHeight: 18,
     marginBottom: 20,
+    fontStyle: 'italic',
   },
   addButton: {
     flexDirection: 'row',

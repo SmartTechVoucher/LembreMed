@@ -26,6 +26,7 @@ export interface Medication {
   notification_enabled: number;
   notification_id: string | null;
   taken_today: number;
+  next_notification_time: string | null; // Nova coluna: timestamp da próxima notificação
   created_at: string;
 }
 
@@ -61,6 +62,7 @@ export const migrateDatabase = async (): Promise<void> => {
         { name: 'concentration', type: 'TEXT' },
         { name: 'quantity', type: 'TEXT' },
         { name: 'unit_type', type: 'TEXT' },
+        { name: 'next_notification_time', type: 'TEXT' }, // Nova coluna
     ];
 
     for (const column of columns) {
@@ -82,7 +84,6 @@ export const migrateDatabase = async (): Promise<void> => {
     console.error('❌ Erro na migração de colunas:', error);
   }
 };
-
 
 export const initDatabase = async (): Promise<void> => {
   try {
@@ -114,6 +115,7 @@ export const initDatabase = async (): Promise<void> => {
         notification_enabled INTEGER DEFAULT 1,
         notification_id TEXT,
         taken_today INTEGER DEFAULT 0,
+        next_notification_time TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
       );
@@ -231,6 +233,24 @@ export const updateUserProfile = async (
   }
 };
 
+/**
+ * Calcula o timestamp da próxima notificação baseado no horário e frequência
+ */
+const calculateNextNotificationTime = (time: string, frequency: string): string => {
+  const now = new Date();
+  const [hours, minutes] = time.split(':').map(Number);
+  
+  const nextTime = new Date();
+  nextTime.setHours(hours, minutes, 0, 0);
+  
+  // Se o horário já passou hoje, agenda para amanhã
+  if (nextTime.getTime() <= now.getTime()) {
+    nextTime.setDate(nextTime.getDate() + 1);
+  }
+  
+  return nextTime.toISOString();
+};
+
 export const addMedication = async (
   userId: number,
   name: string,
@@ -246,11 +266,13 @@ export const addMedication = async (
 ): Promise<{ success: boolean; medicationId?: number; error?: string }> => {
   try {
     const fullDoseString = `${quantity.trim()} ${unitType.trim()} (${concentration.trim()})`;
+    const nextNotificationTime = calculateNextNotificationTime(time, frequency);
 
     const result = await db.runAsync(
       `INSERT INTO medications (
-        user_id, name, dosage, concentration, quantity, unit_type, frequency, time, instructions, start_date, end_date, notification_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        user_id, name, dosage, concentration, quantity, unit_type, frequency, time, instructions, 
+        start_date, end_date, notification_id, next_notification_time
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         name,
@@ -264,10 +286,12 @@ export const addMedication = async (
         startDate || null,
         endDate || null,
         notificationId || null,
+        nextNotificationTime,
       ]
     );
 
     console.log('💊 Medication added successfully with ID:', result.lastInsertRowId);
+    console.log('📅 Next notification:', nextNotificationTime);
     return { success: true, medicationId: result.lastInsertRowId };
   } catch (error) {
     console.error('Error adding medication:', error);
@@ -275,6 +299,39 @@ export const addMedication = async (
   }
 };
 
+/**
+ * Retorna APENAS medicamentos que devem aparecer na tela HOJE
+ * Critérios:
+ * 1. next_notification_time é hoje
+ * 2. Horário ainda não passou OU já passou mas não foi tomado
+ */
+export const getTodayMedications = async (userId: number): Promise<Medication[]> => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+    
+    const result = await db.getAllAsync<Medication>(
+      `SELECT * FROM medications 
+       WHERE user_id = ? 
+       AND next_notification_time >= ? 
+       AND next_notification_time <= ?
+       AND taken_today = 0
+       ORDER BY time ASC`,
+      [userId, todayStart, todayEnd]
+    );
+
+    console.log(`📋 ${result?.length || 0} medicamento(s) para HOJE`);
+    return result || [];
+  } catch (error) {
+    console.error('Error getting today medications:', error);
+    return [];
+  }
+};
+
+/**
+ * Retorna TODOS os medicamentos (para tela de configurações/gerenciamento)
+ */
 export const getUserMedications = async (userId: number): Promise<Medication[]> => {
   try {
     const result = await db.getAllAsync<Medication>(
@@ -331,10 +388,12 @@ export const updateMedication = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const fullDoseString = `${quantity.trim()} ${unitType.trim()} (${concentration.trim()})`;
+    const nextNotificationTime = calculateNextNotificationTime(time, frequency);
 
     await db.runAsync(
       `UPDATE medications
-        SET name = ?, dosage = ?, concentration = ?, quantity = ?, unit_type = ?, frequency = ?, time = ?, instructions = ?, start_date = ?, end_date = ?
+        SET name = ?, dosage = ?, concentration = ?, quantity = ?, unit_type = ?, frequency = ?, 
+            time = ?, instructions = ?, start_date = ?, end_date = ?, next_notification_time = ?
         WHERE id = ?`,
       [
         name,
@@ -347,6 +406,7 @@ export const updateMedication = async (
         instructions || null,
         startDate || null,
         endDate || null,
+        nextNotificationTime,
         medicationId,
       ]
     );
@@ -359,19 +419,31 @@ export const updateMedication = async (
 };
 
 /**
- * Função para adiar o horário do medicamento no banco de dados.
- * Atualiza o 'time', reseta 'taken_today' para 0 e limpa 'notification_id'.
+ * Função para adiar o horário do medicamento.
+ * Atualiza o 'time', 'next_notification_time' e limpa 'notification_id'.
  */
 export const updateMedicationTime = async (
     medicationId: number,
     newTime: string
 ): Promise<{ success: boolean; error?: string }> => {
     try {
-        await db.runAsync(
-            'UPDATE medications SET time = ?, taken_today = 0, notification_id = NULL WHERE id = ?',
-            [newTime, medicationId]
+        // Busca a frequência do medicamento para calcular próximo horário
+        const med = await db.getFirstAsync<{ frequency: string }>(
+          'SELECT frequency FROM medications WHERE id = ?',
+          [medicationId]
         );
-        console.log(`✅ Horário de medicamento ${medicationId} adiado para ${newTime}. taken_today resetado.`);
+        
+        const frequency = med?.frequency || 'Diário';
+        const nextNotificationTime = calculateNextNotificationTime(newTime, frequency);
+
+        await db.runAsync(
+            `UPDATE medications 
+             SET time = ?, next_notification_time = ?, taken_today = 0, notification_id = NULL 
+             WHERE id = ?`,
+            [newTime, nextNotificationTime, medicationId]
+        );
+        
+        console.log(`✅ Horário adiado para ${newTime}. Próxima notificação: ${nextNotificationTime}`);
         return { success: true };
     } catch (error) {
         console.error('❌ Erro ao adiar horário de medicamento:', error);
@@ -379,7 +451,9 @@ export const updateMedicationTime = async (
     }
 };
 
-
+/**
+ * Marca medicamento como tomado e calcula a PRÓXIMA dose
+ */
 export const markMedicationAsTaken = async (
   medicationId: number,
   taken: boolean,
@@ -389,16 +463,44 @@ export const markMedicationAsTaken = async (
   scheduledTime: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    await db.runAsync(
-      'UPDATE medications SET taken_today = ? WHERE id = ?',
-      [taken ? 1 : 0, medicationId]
-    );
-
     if (taken) {
+      // Buscar informações do medicamento
+      const med = await db.getFirstAsync<{ frequency: string, time: string }>(
+        'SELECT frequency, time FROM medications WHERE id = ?',
+        [medicationId]
+      );
+      
+      if (!med) {
+        return { success: false, error: 'Medicamento não encontrado' };
+      }
+
+      // Calcular próxima dose (sempre +1 dia para frequência diária)
+      const [hours, minutes] = med.time.split(':').map(Number);
+      const nextDose = new Date();
+      nextDose.setDate(nextDose.getDate() + 1); // Próximo dia
+      nextDose.setHours(hours, minutes, 0, 0);
+      
+      const nextNotificationTime = nextDose.toISOString();
+
+      // Marcar como tomado e agendar próxima dose
+      await db.runAsync(
+        'UPDATE medications SET taken_today = 1, next_notification_time = ? WHERE id = ?',
+        [nextNotificationTime, medicationId]
+      );
+
+      // Adicionar ao histórico
       await addToHistory(medicationId, userId, medicationName, fullDoseString, scheduledTime, 'taken');
+      
+      console.log(`✅ Medicamento tomado. Próxima dose: ${nextNotificationTime}`);
+    } else {
+      // Desmarcar como tomado
+      const nextNotificationTime = calculateNextNotificationTime(scheduledTime, 'Diário');
+      await db.runAsync(
+        'UPDATE medications SET taken_today = 0, next_notification_time = ? WHERE id = ?',
+        [nextNotificationTime, medicationId]
+      );
     }
 
-    console.log(`✅ Medication ${taken ? 'marcado como tomado' : 'desmarcado'}`);
     return { success: true };
   } catch (error) {
     console.error('Error updating taken status:', error);
@@ -406,9 +508,25 @@ export const markMedicationAsTaken = async (
   }
 };
 
+/**
+ * Reseta os medicamentos diários (chamado à meia-noite)
+ */
 export const resetDailyMedications = async (): Promise<void> => {
   try {
-    await db.runAsync('UPDATE medications SET taken_today = 0');
+    // Buscar todos os medicamentos
+    const medications = await db.getAllAsync<Medication>(
+      'SELECT id, time, frequency FROM medications'
+    );
+
+    for (const med of medications) {
+      const nextNotificationTime = calculateNextNotificationTime(med.time, med.frequency);
+      
+      await db.runAsync(
+        'UPDATE medications SET taken_today = 0, next_notification_time = ? WHERE id = ?',
+        [nextNotificationTime, med.id]
+      );
+    }
+
     console.log('🔄 Medicamentos resetados para o novo dia');
   } catch (error) {
     console.error('Error resetting medications:', error);

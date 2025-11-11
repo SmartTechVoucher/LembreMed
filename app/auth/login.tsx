@@ -104,17 +104,6 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.orText}>Ou login com</Text>
-
-        <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-google" size={24} color="#DB4437" />
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.signupContainer}>
           <Text style={styles.signupText}>Não tem uma conta? </Text>
           <TouchableOpacity onPress={() => router.push('/auth/cadastro')}>
@@ -131,7 +120,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5DC',
     paddingHorizontal: 30,
-    paddingTop: 60,
+    paddingTop: 113,
   },
   header: {
     alignItems: 'center',
