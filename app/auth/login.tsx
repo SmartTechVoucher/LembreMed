@@ -10,6 +10,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  // NOVO ESTADO: controla a visibilidade da senha
+  const [showPassword, setShowPassword] = useState(false); 
+
   const router = useRouter();
   const { signIn } = useAuth();
 
@@ -66,6 +69,7 @@ export default function LoginScreen() {
           />
         </View>
 
+        {/* INPUT DE SENHA COM ALTERNÂNCIA DE VISIBILIDADE */}
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
           <TextInput
@@ -74,8 +78,21 @@ export default function LoginScreen() {
             placeholderTextColor="#999"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            // Usa o estado showPassword
+            secureTextEntry={!showPassword} 
           />
+          {/* Botão para alternar a visibilidade da senha */}
+          <TouchableOpacity
+            onPress={() => setShowPassword(!showPassword)}
+            style={styles.passwordToggle}
+          >
+            <Ionicons
+              // Altera o ícone com base no estado
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color="#999"
+            />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.optionsRow}>
@@ -164,10 +181,17 @@ const styles = StyleSheet.create({
   icon: {
     marginRight: 10,
   },
+  // Ajuste o input para flex: 1 para que o botão de alternância caiba ao lado
   input: {
-    flex: 1,
+    flex: 1, 
     fontSize: 14,
     color: '#333',
+  },
+  // NOVO ESTILO: Botão de alternância da senha
+  passwordToggle: {
+    paddingLeft: 10,
+    paddingRight: 5,
+    paddingVertical: 10,
   },
   optionsRow: {
     flexDirection: 'row',
