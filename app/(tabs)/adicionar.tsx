@@ -514,8 +514,8 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 25, paddingBottom: 40 },
   title: { fontSize: 24, fontWeight: '700', color: '#000', marginBottom: 10 },
   subtitle: { fontSize: 14, color: '#666', marginBottom: 30, lineHeight: 20 },
-  fieldContainer: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 8 },
+  fieldContainer: { marginBottom: 10 },
+  label: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 10 },
   required: { color: '#E76F51' },
   hint: { fontSize: 12, color: '#666', marginBottom: 8, fontStyle: 'italic' },
   input: {
