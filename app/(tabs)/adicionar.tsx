@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router'; // Importar useLocalSearchParams
+import React, { useEffect, useState } from 'react'; // Importar useEffect
 import {
   Alert,
   Platform,
@@ -14,13 +14,22 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { addMedication } from '../database/database';
+import { addMedication } from '../database/database'; // Supondo que você terá updateMedication
 import { cancelAlarm, scheduleMedicationAlarm, testAlarmNow } from '../src/services/alarmService';
 
+// --- Funções Auxiliares de Data e Hora ---
 const formatTime = (date: Date) =>
   date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 const formatDate = (date: Date) => date.toLocaleDateString('pt-BR');
+
+// Função para converter HH:MM para um objeto Date de hoje
+const timeStringToDate = (timeString: string): Date => {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+};
 
 const getInitialTime = () => {
   const now = new Date();
@@ -29,25 +38,36 @@ const getInitialTime = () => {
   if (now.getMinutes() === 0) {
     initial.setHours(now.getHours(), 0, 0, 0);
   } else {
+    // Arredonda para a próxima hora ou hora atual + 1, se necessário
     initial.setHours(now.getHours() + 1, 0, 0, 0);
   }
 
+  // Se o tempo inicial for no passado (o que pode acontecer se for 23:30 e arredondar para 00:00 de hoje),
+  // ajusta para o próximo dia
   if (initial.getTime() <= now.getTime()) {
     initial.setDate(initial.getDate() + 1);
   }
 
   return initial;
 };
+// --- FIM Funções Auxiliares ---
+
 
 export default function AdicionarMedicamentoScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  // Obtém parâmetros da rota
+  const params = useLocalSearchParams();
+  const medicationParam = params.medication as string | undefined;
 
+  // Estados com valores iniciais
+  const [medicationId, setMedicationId] = useState<number | undefined>(undefined);
+  const [isEditing, setIsEditing] = useState(false);
   const [medicationName, setMedicationName] = useState('');
-  
-  const [concentration, setConcentration] = useState(''); 
-  const [quantity, setQuantity] = useState(''); 
-  const [unitType, setUnitType] = useState('Comprimido(s)'); 
+
+  const [concentration, setConcentration] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [unitType, setUnitType] = useState('Comprimido(s)');
 
   const [selectedFrequency, setSelectedFrequency] = useState('Diariamente');
   const [customHours, setCustomHours] = useState('');
@@ -79,6 +99,69 @@ export default function AdicionarMedicamentoScreen() {
     { label: 'Personalizado', value: 'Personalizado', hours: 0 },
   ];
 
+  // --- EFEITO PARA CARREGAR DADOS DE EDIÇÃO ---
+  useEffect(() => {
+    if (medicationParam) {
+      try {
+        const med = JSON.parse(medicationParam);
+
+        // 1. Marcar como Edição
+        setMedicationId(med.id);
+        setIsEditing(true);
+
+        // 2. Preencher Campos Básicos
+        setMedicationName(med.name || '');
+        setObservations(med.instructions || '');
+
+        // 3. Extrair Dose (A dose no DB é 'QUANTIDADE TIPO (CONCENTRAÇÃO)')
+        // A dose está salva como `med.dosage` (ex: "1 Comprimido(s) (500mg)")
+        // O regex tenta extrair (QUANTIDADE) (TIPO) (CONCENTRAÇÃO)
+        const doseMatch = med.dosage ? med.dosage.match(/(\d+)\s*([A-Za-z\(\)]+)\s*\((.+)\)/) : null;
+        
+        if (doseMatch) {
+            setQuantity(doseMatch[1] || '');
+            // Verifica se o Tipo está na lista de opções, senão usa 'Outro'
+            const type = doseMatch[2].trim();
+            setUnitType(unitOptions.includes(type) ? type : 'Outro');
+            setConcentration(doseMatch[3] || '');
+        }
+
+        // 4. Preencher Frequência
+        const frequencyValue = med.frequency; 
+        const isCustom = frequencyValue.includes('A cada') && frequencyValue.includes('horas');
+        
+        if (isCustom) {
+            setSelectedFrequency('Personalizado');
+            setShowCustomInput(true);
+            const hoursMatch = frequencyValue.match(/A cada (\d+) horas/);
+            if (hoursMatch) {
+                setCustomHours(hoursMatch[1]);
+            }
+        } else {
+            setSelectedFrequency(frequencyOptions.find(opt => opt.value === frequencyValue)?.value || 'Diariamente');
+            setShowCustomInput(false);
+        }
+
+        // 5. Preencher Horário
+        if (med.time) {
+            setTime(timeStringToDate(med.time));
+        }
+
+        // 6. Preencher Datas (Apenas se as funções de conversão de string de data estiverem disponíveis/necessárias)
+        // Se as datas no DB são strings no formato dd/mm/aaaa, precisamos de uma função para convertê-las
+        // Se elas não forem usadas no formulário (o que parece ser o caso, já que os DatePickers usam new Date()), 
+        // talvez não seja necessário. Vou deixar a conversão de tempo como prioridade.
+        
+      } catch (e) {
+        console.error('Erro ao desserializar medicamento para edição:', e);
+        Alert.alert('Erro', 'Não foi possível carregar os dados para edição.');
+      }
+    }
+  }, [medicationParam]);
+  // --- FIM EFEITO PARA CARREGAR DADOS DE EDIÇÃO ---
+
+  // ... (Resto das suas funções, como onTimeChange, handleFrequencyChange, etc. - não precisam de alteração)
+  
   const onTimeChange = (_: any, selectedTime?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (selectedTime) {
@@ -112,9 +195,10 @@ export default function AdicionarMedicamentoScreen() {
     }
   };
 
+
   const calculateScheduleTimes = (startTime: Date, intervalHours: number): Date[] => {
     const times: Date[] = [];
-    const interval = intervalHours > 0 ? intervalHours : 24; 
+    const interval = intervalHours > 0 ? intervalHours : 24;
     const timesPerDay = Math.floor(24 / interval);
 
     for (let i = 0; i < timesPerDay; i++) {
@@ -148,6 +232,7 @@ export default function AdicionarMedicamentoScreen() {
 
     setLoading(true);
     try {
+        // Lógica de cálculo de frequência (mantida)
       let intervalHours = 24;
       let frequencyText = selectedFrequency;
 
@@ -162,14 +247,31 @@ export default function AdicionarMedicamentoScreen() {
       }
 
       const scheduleTimes = calculateScheduleTimes(time, intervalHours);
-
       const fullDoseString = `${quantity.trim()} ${unitType.trim()} (${concentration.trim()})`;
 
+      // --- Lógica de EDIÇÃO/CRIAÇÃO ---
+      if (isEditing && medicationId !== undefined) {
+        // Se estiver editando, você precisará de uma função de update no seu `database.ts`
+        
+        // **IMPORTANTE**: Para edição, você precisa cancelar os alarmes antigos 
+        // e agendar novos. Essa lógica precisa ser implementada.
+        
+        // Exemplo:
+        // const updateResult = await updateMedication(medicationId, user.id, ... novos dados); 
+        
+        setLoading(false);
+        Alert.alert('Funcionalidade de Edição', 'A funcionalidade de **atualização** (updateMedication) e a reconfiguração dos alarmes para um medicamento existente precisam ser implementadas no banco de dados e no serviço de alarme.');
+        router.back();
+        return; // Sair para não executar o addMedication
+      } 
+      // --- FIM Lógica de EDIÇÃO/CRIAÇÃO ---
+
+      // Lógica de Adição (mantida)
       const alarmIds: string[] = [];
       for (const scheduleTime of scheduleTimes) {
         const { id: alarmId, scheduledDate } = await scheduleMedicationAlarm(
           medicationName.trim(),
-          fullDoseString, 
+          fullDoseString,
           scheduleTime
         );
 
@@ -188,11 +290,11 @@ export default function AdicionarMedicamentoScreen() {
       const result = await addMedication(
         user.id,
         medicationName.trim(),
-        concentration.trim(), 
-        quantity.trim(),      
-        unitType.trim(),      
+        concentration.trim(),
+        quantity.trim(),
+        unitType.trim(),
         frequencyText,
-        formatTime(time), 
+        formatTime(time),
         observations.trim() || undefined,
         formatDate(startDate),
         formatDate(endDate),
@@ -206,7 +308,7 @@ export default function AdicionarMedicamentoScreen() {
         message += `Dose: **${fullDoseString}**\n`;
         message += `⏰ ${scheduleTimes.length} alarme(s) configurado(s):\n`;
         scheduleTimes.forEach((t, i) => {
-          message += `   ${i + 1}. ${formatTime(t)}\n`;
+          message += `   ${i + 1}. ${formatTime(t)}\n`;
         });
         message += `\n📅 Repetição: ${frequencyText}`;
 
@@ -239,7 +341,8 @@ export default function AdicionarMedicamentoScreen() {
       Alert.alert('Erro', 'Não foi possível adicionar o medicamento');
     }
   };
-
+  
+  // --- Renderização ---
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -264,9 +367,14 @@ export default function AdicionarMedicamentoScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Adicionar Medicamento</Text>
+        {/* Título dinâmico */}
+        <Text style={styles.title}>
+          {isEditing ? 'Editar Medicamento' : 'Adicionar Medicamento'}
+        </Text>
         <Text style={styles.subtitle}>
-          Informe os detalhes{'\n'}para receber lembretes no horário certo.
+          {isEditing
+            ? `Atualize os detalhes de: ${medicationName}`
+            : 'Informe os detalhes\npara receber lembretes no horário certo.'}
         </Text>
 
         <View style={styles.fieldContainer}>
@@ -300,7 +408,6 @@ export default function AdicionarMedicamentoScreen() {
             Quantidade e Tipo de Unidade <Text style={styles.required}>*</Text>
           </Text>
           <View style={styles.quantityRow}>
-
             <TextInput
               style={[styles.input, styles.quantityInput]}
               placeholder="Ex: 1, 2"
@@ -466,7 +573,13 @@ export default function AdicionarMedicamentoScreen() {
           disabled={loading}
         >
           <Text style={styles.addButtonText}>
-            {loading ? 'Adicionando...' : 'Adicionar'}
+            {loading ? (
+              isEditing ? 'Salvando...' : 'Adicionando...'
+            ) : isEditing ? (
+              'Salvar Alterações'
+            ) : (
+              'Adicionar'
+            )}
           </Text>
         </TouchableOpacity>
 
@@ -543,15 +656,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quantityInput: {
-    flex: 0.35, 
+    flex: 0.35,
     textAlign: 'center',
     fontWeight: '600',
     fontSize: 16,
   },
   unitPickerContainer: {
-    flex: 0.65, 
+    flex: 0.65,
   },
-  
+
   customFrequencyContainer: {
     marginTop: 15,
     padding: 15,

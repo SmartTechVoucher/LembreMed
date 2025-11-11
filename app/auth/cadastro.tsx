@@ -2,11 +2,23 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+// Certifique-se de que o caminho para 'database' está correto
 import { registerUser } from '../database/database';
 
 export default function CadastroScreen() {
-  const [name, setName] = useState(''); 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,9 +26,13 @@ export default function CadastroScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // ESTADOS PARA VISIBILIDADE DA SENHA
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (status !== 'granted') {
       Alert.alert('Permissão negada', 'Precisamos de permissão para acessar suas fotos');
       return;
@@ -57,18 +73,19 @@ export default function CadastroScreen() {
     }
 
     setLoading(true);
-    const result = await registerUser(email, password, name, profileImage || undefined);
+    // Presumindo que a função registerUser está configurada para lidar com a imagem
+    const result = await registerUser(email, password, name, profileImage || undefined); 
     setLoading(false);
 
     if (result.success) {
       Alert.alert(
-        'Sucesso', 
+        'Sucesso',
         'Cadastro realizado com sucesso!',
         [
           {
             text: 'OK',
-            onPress: () => router.push('/auth/login')
-          }
+            onPress: () => router.push('/auth/login'),
+          },
         ]
       );
     } else {
@@ -77,126 +94,167 @@ export default function CadastroScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#2A7C8F" />
-        </TouchableOpacity>
-        
-        <Image 
-          source={require('../../assets/images/Blue_pill.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.title}>
-          <Text style={styles.titleBold}>Lembre</Text>
-          <Text style={styles.titleLight}>Med</Text>
-        </Text>
-      </View>
-
-      <Text style={styles.welcomeText}>Crie sua conta</Text>
-
-      <View style={styles.imageContainer}>
-        <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-          {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.profileImage} />
-          ) : (
-            <View style={styles.placeholderImage}>
-              <Ionicons name="person-outline" size={40} color="#999" />
-            </View>
-          )}
-          <View style={styles.cameraIcon}>
-            <Ionicons name="camera" size={16} color="#FFF" />
-          </View>
-        </TouchableOpacity>
-        <Text style={styles.imageText}>Foto de perfil (opcional)</Text>
-      </View>
-
-      <View style={styles.formContainer}>
-        <View style={styles.inputContainer}>
-          <Ionicons name="person-outline" size={20} color="#999" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Nome completo *"
-            placeholderTextColor="#999"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={20} color="#999" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Email *"
-            placeholderTextColor="#999"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Senha *"
-            placeholderTextColor="#999"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirmar Senha *"
-            placeholderTextColor="#999"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
-        </View>
-
-        <Text style={styles.requiredText}>* Campos obrigatórios</Text>
-
-        <TouchableOpacity 
-          style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          <Text style={styles.registerButtonText}>
-            {loading ? 'Cadastrando...' : 'Cadastrar'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Já tem uma conta? </Text>
-          <TouchableOpacity onPress={() => router.push('/auth/login')}>
-            <Text style={styles.loginLink}>Login</Text>
+    <KeyboardAvoidingView 
+      style={styles.container} // Contêiner principal com cor de fundo
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        // -------------------------------------------------------------------
+        // MUDANÇA CRÍTICA: Aplica o estilo do container no ScrollView
+        style={styles.container} 
+        // Desativa o efeito de "overscroll" (pulo) que expõe o fundo do SO
+        bounces={false}
+        // -------------------------------------------------------------------
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#2A7C8F" />
           </TouchableOpacity>
+
+          <Image
+            // Presumindo que o caminho está correto
+            source={require('../../assets/images/Blue_pill.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>
+            <Text style={styles.titleBold}>Lembre</Text>
+            <Text style={styles.titleLight}>Med</Text>
+          </Text>
         </View>
-      </View>
-    </ScrollView>
+
+        <Text style={styles.welcomeText}>Crie sua conta</Text>
+
+        <View style={styles.imageContainer}>
+          <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.profileImage} />
+            ) : (
+              <View style={styles.placeholderImage}>
+                <Ionicons name="person-outline" size={40} color="#999" />
+              </View>
+            )}
+            <View style={styles.cameraIcon}>
+              <Ionicons name="camera" size={16} color="#FFF" />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.imageText}>Foto de perfil (opcional)</Text>
+        </View>
+
+        <View style={styles.formContainer}>
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={20} color="#999" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Nome completo *"
+              placeholderTextColor="#999"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color="#999" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email *"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* INPUT DE SENHA REFATORADO */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Senha *"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            {/* Botão de "Olho" */}
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.passwordToggle}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#999"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* INPUT DE CONFIRMAR SENHA REFATORADO */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color="#999" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirmar Senha *"
+              placeholderTextColor="#999"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+            />
+            {/* Botão de "Olho" */}
+            <TouchableOpacity
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              style={styles.passwordToggle}
+            >
+              <Ionicons
+                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#999"
+              />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.requiredText}>* Campos obrigatórios</Text>
+
+          <TouchableOpacity
+            style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            <Text style={styles.registerButtonText}>
+              {loading ? 'Cadastrando...' : 'Cadastrar'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.loginContainer}>
+            <Text style={styles.loginText}>Já tem uma conta? </Text>
+            <TouchableOpacity onPress={() => router.push('/auth/login')}>
+              <Text style={styles.loginLink}>Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
+
+// --- Stylesheet ---
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC',
+    // COR CAFÉ - Crucial para cobrir o fundo do sistema
+    backgroundColor: '#F5F5DC', 
   },
   contentContainer: {
     paddingHorizontal: 30,
     paddingTop: 40,
     paddingBottom: 30,
+    // Necessário para que o conteúdo preencha a tela se for pequeno
+    flexGrow: 1, 
   },
   header: {
     alignItems: 'center',
@@ -293,6 +351,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#333',
+    paddingRight: 10, 
+  },
+  passwordToggle: {
+    paddingLeft: 10,
+    paddingVertical: 10,
   },
   requiredText: {
     fontSize: 11,
