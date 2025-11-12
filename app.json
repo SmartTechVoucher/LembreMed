@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/Blue_pill.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
