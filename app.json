@@ -4,7 +4,7 @@
     "slug": "LembreMed",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/Blue_pill.png",
     "scheme": "lembremed",
     "userInterfaceStyle": "automatic",
     "ios": {
